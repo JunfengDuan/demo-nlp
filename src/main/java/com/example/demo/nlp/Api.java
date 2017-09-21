@@ -14,7 +14,12 @@ import java.util.Map;
 @Component
 public class Api {
 
-    public List<Dict> dictList = new ArrayList<>();
+    public List<Dict> dictList;
+    public List<String> ageList;
+    public List<String> compareList;
+    public Map<String,String> compareMap;
+
+    Api(){constructDict();constructCustomDict();}
 
     public List StringMatch(String query){
 
@@ -52,11 +57,14 @@ public class Api {
        Dict dict4 = new Dict("Cadre","gender","男");
        Dict dict5 = new Dict("Cadre","gender","女");
        Dict dict6 = new Dict("Cadre","level","市管");
-       Dict dict7 = new Dict("Cadre","level","市处级");
+       Dict dict7 = new Dict("Organization","name","局级");
        Dict dict8 = new Dict("Cadre","干部");
        Dict dict9 = new Dict("Organization","单位");
        Dict dict10 = new Dict("Cadre","political_status;","中共党员");
+       Dict dict11 = new Dict("Organization","level","领导职务");
+       Dict dict12 = new Dict("Organization","name","正处级");
 
+       dictList = new ArrayList<>();
        dictList.add(dict1);
        dictList.add(dict2);
        dictList.add(dict3);
@@ -67,6 +75,8 @@ public class Api {
        dictList.add(dict8);
        dictList.add(dict9);
        dictList.add(dict10);
+       dictList.add(dict11);
+       dictList.add(dict12);
    }
 
 
@@ -96,5 +106,35 @@ public class Api {
             this.label = label;
             this.name = name;
         }
+    }
+
+    public void constructCustomDict(){
+        ageList = new ArrayList<>();
+        ageList.add("岁");
+        ageList.add("年龄");
+        ageList.add("出生");
+        ageList.add("后");
+
+        compareList = new ArrayList<>();
+        compareList.add("大于");
+        compareList.add("大于等于");
+        compareList.add("小于");
+        compareList.add("小于等于");
+        compareList.add("等于");
+        compareList.add("-");
+        compareList.add("——");
+        compareList.add("到");
+
+        compareMap = new HashMap<>();
+        compareMap.put("大于",">");
+        compareMap.put("大于等于",">=");
+        compareMap.put("小于","<");
+        compareMap.put("小于等于","<=");
+        compareMap.put("等于","=");
+        compareMap.put("-","-");
+        compareMap.put("——","-");
+        compareMap.put("到","-");
+        compareMap.put("和","-");
+        compareMap.put("后",">=");
     }
 }

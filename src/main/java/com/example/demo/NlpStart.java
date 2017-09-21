@@ -34,17 +34,26 @@ public class NlpStart implements CommandLineRunner{
         String query1 = "干部";
         String query2 = "少数民族女";
         String query3 = "市管干部";
-        String query4 = "非中共党员干部";
+        String query4 = "女非中共党员干部";
         String query5 = "籍贯是河北的干部";
+        String query6 = "全部局级非领导职务干部";
+        String query7 = "全部市管非局级领导职务干部";
+        String query8 = "小于30岁的处级干部";
+        String query9 = "30-35岁的正处级干部";
+        String query10 = "30到35岁之间的正处级干部";
+        String query11 = "小于三十岁的正处级干部";
+        String query12 = "1990年出生的干部";
+        String query13 = "30岁的干部";
+        String query14 = "80后干部";
 
-        api.constructDict();
-
-        Map<String, Object> result = search(query);
+        Map<String, Object> result = search(query14);
         logger.info("\nAfter segment :{}",result);
 
      /* List<String> list = new ArrayList(){{add("aaa");add("bbbb");add("cc");add("dd");add("r");}};
         String s = compare1(list);
         logger.info("s-----> :"+s);*/
+
+//        MATCH (n:Cadre) where n.birthday <'1958-04-05' RETURN n LIMIT 25
 
     }
 
@@ -58,10 +67,10 @@ public class NlpStart implements CommandLineRunner{
     public Map<String, Object> search(String query){
         List<String> labels = new ArrayList<>();
         Map<String, Object> args = new HashMap<>();
-
-        List<Map<String, Object>> queryResults = parse(labels, query);
-
         Map<String,Object> customDict = new HashMap<>();
+
+        List<Map<String, Object>> queryResults = parse(customDict, labels, query);
+
         queryResults.stream().filter(m -> m.containsKey("antonym") && m.get("antonym")!= null).forEach(map ->{
             customDict.put((String) map.get("value"), map.get("antonym"));});
 
@@ -109,13 +118,27 @@ public class NlpStart implements CommandLineRunner{
 
     /**
      * 对查询词典的返回结果进行解析
+     *
+     * @param customDict
      * @param labels label的集合
-     * @param query 搜索的自然语言
+     * @param search 搜索的自然语言
      * @return
      */
-    private List parse(List<String> labels, String query){
+    private List parse(Map<String, Object> customDict, List<String> labels, String search){
 
-        List<String> words = new ArrayList<>(segmentJob.doSegment(query));
+        String query = specialStringHandle(search);
+
+        List<String> segments = new ArrayList<>(segmentJob.doSegment(query));
+
+        Map<String, List> range = rangeParse(segments);
+
+        segments = range.get("removeAgeWords");
+        List age = range.get("age");
+
+        List<String> words0 = addToCustomDict(customDict, segments);
+
+        List<String> words = cutSingleWord(words0);
+
         String segmentString = StringUtils.join(words, " ");
 
         List<String> entityNames = new ArrayList<>();
@@ -164,6 +187,37 @@ public class NlpStart implements CommandLineRunner{
         return containedFields;
     }
 
+    private List<String> addToCustomDict(Map<String, Object> customDict, List<String> segments) {
+        if(!segments.contains("非")) return segments;
+        segments.forEach(s -> {
+            if(s.equalsIgnoreCase("非")){
+                int pos = segments.indexOf(s);
+                String w = segments.get(pos+1);
+                customDict.put(w, w+" ");
+            }
+
+        });
+        return segments.stream().filter(s -> !"非".equals(s)).collect(Collectors.toList());
+    }
+
+    private String specialStringHandle(String search) {
+        search = search.contains("非") ? search.replace("非", " 非 ") : search;
+        search = search.contains("-") ? search.replace("-", " - ") : search;
+        search = search.contains("——") ? search.replace("——", " —— ") : search;
+        return search;
+    }
+
+    /**
+     * 排除查询语句中的介词、单个无意义词
+     * @param words
+     * @return
+     */
+    private List<String> cutSingleWord(List<String> words) {
+        String[] s = {"是","的","了","在","于"};
+        List<String> unavailableWords = Arrays.asList(s);
+        List<String> strings = words.stream().filter(word -> !unavailableWords.contains(word)).collect(Collectors.toList());
+        return strings;
+    }
     /**
      * 对模糊匹配到的属性集合做最佳匹配度筛选
      * @param map
@@ -216,11 +270,61 @@ public class NlpStart implements CommandLineRunner{
     }
 
     // 过滤特殊字符
-    private static String stringFilter(String str){
+    private String stringFilter(String str){
         String regEx = "[`~!@#$%^&*()+=|{}':;',\\[\\].<>/?~！@#￥%……&*（）——+|{}【】‘；：”“’。，、？]";
-        Pattern p   =   Pattern.compile(regEx);
-        Matcher m   =   p.matcher(str);
-        return   m.replaceAll("").trim();
+        Pattern p = Pattern.compile(regEx);
+        Matcher m = p.matcher(str);
+        return m.replaceAll("").trim();
     }
+
+    // 范围解析
+    private Map<String, List> rangeParse(List<String> words){
+
+        List<String> age = words.stream().filter(w -> api.ageList.contains(w)).collect(Collectors.toList());
+        if(age.isEmpty()) return new HashMap(){{put("removeAgeWords",words);}};
+
+        List<String> compare = words.stream().filter(w -> api.compareMap.keySet().contains(w) || isNumeric(w)).collect(Collectors.toList());
+
+        List<String> operator = new ArrayList<>();
+
+        compare.forEach(w -> {
+            if(compare.size()==1 && isNumeric(compare.get(0))){
+                String num = compare.get(0);
+                if(age.contains("岁") || age.contains("出生")){
+                    operator.add("=" + num);
+                }
+            }
+
+            if(isNumeric(w)){
+                int i = compare.indexOf(w);
+                if(i-1>=0){
+                    String op = compare.get(i-1);
+                    switch (op){
+                        case "-" :
+                        case "——" :
+                        case "到" :
+                        case "和" : {
+                            operator.add("<=" + w);
+                            if(i-2>=0)
+                                operator.add(">="+compare.get(i-2));break;}
+                        default: {
+                            String op1 = api.compareMap.get(op);
+                            operator.add(op1 + w);
+                        }
+                    }
+                }else if(age.contains("后") ){
+                    operator.add(">=" + w);
+                }
+            }
+        });
+        List<String> removeAgeWords = words.stream().filter(w -> !api.ageList.contains(w) && !compare.contains(w)).collect(Collectors.toList());
+        return new HashMap(){{put("removeAgeWords",removeAgeWords);put("age",operator);}};
+    }
+
+    public boolean isNumeric(String str){
+        return str.matches(".*\\d+.*");
+    }
+
+
 
 }
