@@ -44,9 +44,10 @@ public class NlpStart implements CommandLineRunner{
         String query11 = "小于三十岁的正处级干部";
         String query12 = "1990年出生的干部";
         String query13 = "30岁的干部";
-        String query14 = "80后干部";
+        String query14 = "北京市公安局80后干部";
+        String query15 = "质监局1990年出生的干部";
 
-        Map<String, Object> result = search(query14);
+        Map<String, Object> result = search(query15);
         logger.info("\nAfter segment :{}",result);
 
      /* List<String> list = new ArrayList(){{add("aaa");add("bbbb");add("cc");add("dd");add("r");}};
@@ -69,7 +70,7 @@ public class NlpStart implements CommandLineRunner{
         Map<String, Object> args = new HashMap<>();
         Map<String,Object> customDict = new HashMap<>();
 
-        List<Map<String, Object>> queryResults = parse(customDict, labels, query);
+        List<Map<String, Object>> queryResults = parse(customDict, labels, args, query);
 
         queryResults.stream().filter(m -> m.containsKey("antonym") && m.get("antonym")!= null).forEach(map ->{
             customDict.put((String) map.get("value"), map.get("antonym"));});
@@ -121,19 +122,24 @@ public class NlpStart implements CommandLineRunner{
      *
      * @param customDict
      * @param labels label的集合
-     * @param search 搜索的自然语言
-     * @return
+     * @param args
+     *@param search 搜索的自然语言  @return
      */
-    private List parse(Map<String, Object> customDict, List<String> labels, String search){
+    private List parse(Map<String, Object> customDict, List<String> labels, Map<String, Object> args, String search){
 
         String query = specialStringHandle(search);
 
         List<String> segments = new ArrayList<>(segmentJob.doSegment(query));
 
-        Map<String, List> range = rangeParse(segments);
+        Map<String, Object> range = rangeParse(segments);
 
-        segments = range.get("removeAgeWords");
-        List age = range.get("age");
+        segments = (List<String>) range.get("removeAgeWords");
+        Map<String,String> age = (Map<String, String>) range.get("age");
+
+        if(age != null && !age.isEmpty()){
+            Map<String,String> birthMap = ageToBirth(age);
+            args.putAll(birthMap);
+        }
 
         List<String> words0 = addToCustomDict(customDict, segments);
 
@@ -186,6 +192,8 @@ public class NlpStart implements CommandLineRunner{
 
         return containedFields;
     }
+
+
 
     private List<String> addToCustomDict(Map<String, Object> customDict, List<String> segments) {
         if(!segments.contains("非")) return segments;
@@ -277,54 +285,89 @@ public class NlpStart implements CommandLineRunner{
         return m.replaceAll("").trim();
     }
 
-    // 范围解析
-    private Map<String, List> rangeParse(List<String> words){
+    // 年龄范围解析
+    private Map<String, Object> rangeParse(List<String> words){
+        Map<String,String> ageMap = new HashMap<>();
 
         List<String> age = words.stream().filter(w -> api.ageList.contains(w)).collect(Collectors.toList());
-        if(age.isEmpty()) return new HashMap(){{put("removeAgeWords",words);}};
-
-        List<String> compare = words.stream().filter(w -> api.compareMap.keySet().contains(w) || isNumeric(w)).collect(Collectors.toList());
-
-        List<String> operator = new ArrayList<>();
-
-        compare.forEach(w -> {
-            if(compare.size()==1 && isNumeric(compare.get(0))){
-                String num = compare.get(0);
-                if(age.contains("岁") || age.contains("出生")){
-                    operator.add("=" + num);
+        if(age.isEmpty()){
+            boolean isAge = false;
+            String query = StringUtils.join(words.iterator(),"");
+            if(query.contains("后")){
+                int n = query.indexOf("后")-1;
+                if(n>=0){
+                    char c = query.charAt(n);
+                    isAge = isNumeric(String.valueOf(c));
                 }
             }
+            if(!isAge)  return new HashMap(){{put("removeAgeWords",words);}};
+        }
+
+        List<String> compare = words.stream().filter(w -> api.compareMap.keySet().contains(w) || containNumeric(w)).collect(Collectors.toList());
+
+        compare.forEach(w -> {
 
             if(isNumeric(w)){
                 int i = compare.indexOf(w);
                 if(i-1>=0){
                     String op = compare.get(i-1);
-                    switch (op){
-                        case "-" :
-                        case "——" :
-                        case "到" :
-                        case "和" : {
-                            operator.add("<=" + w);
-                            if(i-2>=0)
-                                operator.add(">="+compare.get(i-2));break;}
-                        default: {
-                            String op1 = api.compareMap.get(op);
-                            operator.add(op1 + w);
+                    if( api.compareMap.keySet().contains(op)){
+                        switch (op){
+                            case "-" :
+                            case "——" :
+                            case "到" :
+                            case "和" : {
+                                ageMap.put("<=", w);
+                                if(i-2>=0)
+                                    ageMap.put(">=", compare.get(i-2));break;}
+                            default: {
+                                String op1 = api.compareMap.get(op);
+                                ageMap.put(op1, w);
+                            }
+                        }
+                    }else if(i+1<compare.size()){
+                        if(age.contains("出生")){
+                            ageMap.put("=", w);
+                        }else if(compare.get(i+1).contains("后") ){
+                            ageMap.put(">=", "19"+w);
                         }
                     }
-                }else if(age.contains("后") ){
-                    operator.add(">=" + w);
+
+                }else if(i+1<compare.size()){
+                    if(age.contains("出生")){
+                        ageMap.put("=", w);
+                    }else if(compare.get(i+1).contains("后") ){
+                        ageMap.put(">=", "19"+w);
+                    }
+                }else{
+                    if(age.contains("岁")){
+                        ageMap.put("=", w);
+                    }
                 }
+            }else if(containNumeric(w)){
+                ageMap.put("=", w);
             }
         });
+
         List<String> removeAgeWords = words.stream().filter(w -> !api.ageList.contains(w) && !compare.contains(w)).collect(Collectors.toList());
-        return new HashMap(){{put("removeAgeWords",removeAgeWords);put("age",operator);}};
+        return new HashMap(){{put("removeAgeWords",removeAgeWords);put("age",ageMap);}};
     }
 
-    public boolean isNumeric(String str){
+    public boolean containNumeric(String str){
         return str.matches(".*\\d+.*");
     }
 
+    public boolean isNumeric(String str){
+        Pattern pattern = Pattern.compile("[0-9]+");
+        Matcher isNum = pattern.matcher(str);
+        if( !isNum.matches() ){
+            return false;
+        }
+        return true;
+    }
 
+    private Map<String,String> ageToBirth(Map<String, String> age) {
+        return age;
+    }
 
 }

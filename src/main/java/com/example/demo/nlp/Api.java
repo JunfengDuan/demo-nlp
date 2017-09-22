@@ -113,7 +113,6 @@ public class Api {
         ageList.add("岁");
         ageList.add("年龄");
         ageList.add("出生");
-        ageList.add("后");
 
         compareList = new ArrayList<>();
         compareList.add("大于");
