@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import com.example.demo.nlp.AlgorithmLibrary;
 import com.example.demo.nlp.Api;
 import com.example.demo.nlp.SegmentJob;
 import org.apache.commons.lang3.StringUtils;
@@ -13,6 +14,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import static com.example.demo.nlp.AlgorithmLibrary.*;
 
 /**
  * Created by jfd on 8/26/17.
@@ -46,8 +48,10 @@ public class NlpStart implements CommandLineRunner{
         String query13 = "30岁的干部";
         String query14 = "北京市公安局80后干部";
         String query15 = "质监局1990年出生的干部";
+        String query16 = "八零后干部";
+        String query17 = "三十岁的干部";
 
-        Map<String, Object> result = search(query15);
+        Map<String, Object> result = search(query9);
         logger.info("\nAfter segment :{}",result);
 
      /* List<String> list = new ArrayList(){{add("aaa");add("bbbb");add("cc");add("dd");add("r");}};
@@ -68,9 +72,10 @@ public class NlpStart implements CommandLineRunner{
     public Map<String, Object> search(String query){
         List<String> labels = new ArrayList<>();
         Map<String, Object> args = new HashMap<>();
+        Map<String, Object> ages = new HashMap<>();
         Map<String,Object> customDict = new HashMap<>();
 
-        List<Map<String, Object>> queryResults = parse(customDict, labels, args, query);
+        List<Map<String, Object>> queryResults = parse(customDict, labels, ages, query);
 
         queryResults.stream().filter(m -> m.containsKey("antonym") && m.get("antonym")!= null).forEach(map ->{
             customDict.put((String) map.get("value"), map.get("antonym"));});
@@ -99,6 +104,7 @@ public class NlpStart implements CommandLineRunner{
 
         //对自定义的属性条件做进一步处理
         Map<String, Object> properties = customPropsHandle(customDict, params);
+        properties.putAll(ages);
 
         return new HashMap(){{put("labels",labels);put("properties",properties);}};
     }
@@ -122,10 +128,10 @@ public class NlpStart implements CommandLineRunner{
      *
      * @param customDict
      * @param labels label的集合
-     * @param args
+     * @param ages
      *@param search 搜索的自然语言  @return
      */
-    private List parse(Map<String, Object> customDict, List<String> labels, Map<String, Object> args, String search){
+    private List parse(Map<String, Object> customDict, List<String> labels, Map<String, Object> ages, String search){
 
         String query = specialStringHandle(search);
 
@@ -134,11 +140,11 @@ public class NlpStart implements CommandLineRunner{
         Map<String, Object> range = rangeParse(segments);
 
         segments = (List<String>) range.get("removeAgeWords");
-        Map<String,String> age = (Map<String, String>) range.get("age");
+        List<String> age = (List<String>) range.get("age");
 
         if(age != null && !age.isEmpty()){
             Map<String,String> birthMap = ageToBirth(age);
-            args.putAll(birthMap);
+            ages.putAll(birthMap);
         }
 
         List<String> words0 = addToCustomDict(customDict, segments);
@@ -257,7 +263,8 @@ public class NlpStart implements CommandLineRunner{
         List<String> keys = new ArrayList<>();
         list.forEach(s -> map.put(s, s.length()));
         map.values().stream().sorted(Comparator.reverseOrder()).forEach(n -> {
-            map.keySet().stream().filter(key -> map.get(key)==n).forEach(k -> {if(!keys.contains(k)) keys.add(k);});
+            map.keySet().stream().filter(key -> map.get(key)==n).forEach(k -> {
+                if(!keys.contains(k)) keys.add(k);});
         });
         return keys.get(0);
     }
@@ -286,13 +293,24 @@ public class NlpStart implements CommandLineRunner{
     }
 
     // 年龄范围解析
-    private Map<String, Object> rangeParse(List<String> words){
-        Map<String,String> ageMap = new HashMap<>();
+    private Map<String, Object> rangeParse(List<String> wordsList){
+        List<String> ageList = new ArrayList<>();
+        List<String> words = new ArrayList<>();
 
+        for(String w: wordsList){
+            List<String> collect = chineseNumbers.keySet().stream().filter(c -> w.contains(c)).collect(Collectors.toList());
+            String str = w;
+            if(!collect.isEmpty()){
+                str = String.valueOf(convert2Num(str));
+                if(str.length()<=w.length()/2)
+                    str = connect2Num(w);
+            }
+            words.add(str);
+        }
+        String query = StringUtils.join(words.iterator(),"");
         List<String> age = words.stream().filter(w -> api.ageList.contains(w)).collect(Collectors.toList());
         if(age.isEmpty()){
             boolean isAge = false;
-            String query = StringUtils.join(words.iterator(),"");
             if(query.contains("后")){
                 int n = query.indexOf("后")-1;
                 if(n>=0){
@@ -317,47 +335,47 @@ public class NlpStart implements CommandLineRunner{
                             case "——" :
                             case "到" :
                             case "和" : {
-                                ageMap.put("<=", w);
+                                ageList.add(">= "+ w);
                                 if(i-2>=0)
-                                    ageMap.put(">=", compare.get(i-2));break;}
+                                    ageList.add("<= "+compare.get(i-2));break;}
                             default: {
                                 String op1 = api.compareMap.get(op);
-                                ageMap.put(op1, w);
+                                ageList.add(op1+" "+w);
                             }
                         }
                     }else if(i+1<compare.size()){
                         if(age.contains("出生")){
-                            ageMap.put("=", w);
+                            ageList.add("contains "+ w);
                         }else if(compare.get(i+1).contains("后") ){
-                            ageMap.put(">=", "19"+w);
+                            ageList.add(">= "+ "19"+w);
                         }
                     }
 
                 }else if(i+1<compare.size()){
                     if(age.contains("出生")){
-                        ageMap.put("=", w);
+                        ageList.add("contains "+ w);
                     }else if(compare.get(i+1).contains("后") ){
-                        ageMap.put(">=", "19"+w);
+                        ageList.add(">= "+ "19"+w);
                     }
                 }else{
                     if(age.contains("岁")){
-                        ageMap.put("=", w);
+                        ageList.add("contains "+w);
                     }
                 }
             }else if(containNumeric(w)){
-                ageMap.put("=", w);
+                ageList.add("contains "+w);
             }
         });
 
         List<String> removeAgeWords = words.stream().filter(w -> !api.ageList.contains(w) && !compare.contains(w)).collect(Collectors.toList());
-        return new HashMap(){{put("removeAgeWords",removeAgeWords);put("age",ageMap);}};
+        return new HashMap(){{put("removeAgeWords",removeAgeWords);put("age",ageList);}};
     }
 
-    public boolean containNumeric(String str){
+    private boolean containNumeric(String str){
         return str.matches(".*\\d+.*");
     }
 
-    public boolean isNumeric(String str){
+    private boolean isNumeric(String str){
         Pattern pattern = Pattern.compile("[0-9]+");
         Matcher isNum = pattern.matcher(str);
         if( !isNum.matches() ){
@@ -365,9 +383,55 @@ public class NlpStart implements CommandLineRunner{
         }
         return true;
     }
-
-    private Map<String,String> ageToBirth(Map<String, String> age) {
-        return age;
+    private String findNumeric(String str){
+        StringBuilder sb = new StringBuilder();
+        Pattern pattern = Pattern.compile("[0-9]");
+        Matcher isNum = pattern.matcher(str);
+        if( isNum.find() ){
+            sb.append(isNum.group());
+        }
+        return sb.toString();
     }
+
+    private Map<String,String> ageToBirth(List<String> ages) {
+        Map<String,String> birthdayMap = new HashMap<>();
+        List<String> collect = new ArrayList<>();
+        ages.forEach(age -> {
+            String[] operatorAndAge = StringUtils.split(age, " ");
+            String birthday = getBirthday(operatorAndAge[1]);
+            collect.add(operatorAndAge[0]+"'"+birthday+"'");
+
+        });
+        birthdayMap.put("cadre.birthday", StringUtils.join(collect, " and cadre.birthday "));
+        return birthdayMap;
+    }
+
+    private String getBirthday(String s) {
+        int ageYear = 0;
+        int ageMonth = 0;
+        int ageDay = 0;
+        if(!isNumeric(s)){
+            if(s.contains("年")){
+                s = s.replace("年","");
+                ageYear = Integer.valueOf(s);
+            }else if (s.contains("月")){
+                s = s.replace("月","");
+                ageMonth = Integer.valueOf(s);
+            }else {
+                s = s.replace("日","");
+                ageDay = Integer.valueOf(s);
+            }
+        }else {
+            ageYear = Integer.valueOf(s);
+        }
+
+        if(ageYear > 200) return s;
+        Calendar c = Calendar.getInstance();
+        c.add(Calendar.YEAR, -ageYear);
+        c.add(Calendar.MONTH, -ageMonth);
+        c.add(Calendar.DAY_OF_MONTH, -ageDay);
+        return String.format("%tF", c.getTime());
+    }
+
 
 }

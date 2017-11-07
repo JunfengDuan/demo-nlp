@@ -125,10 +125,10 @@ public class Api {
         compareList.add("到");
 
         compareMap = new HashMap<>();
-        compareMap.put("大于",">");
-        compareMap.put("大于等于",">=");
-        compareMap.put("小于","<");
-        compareMap.put("小于等于","<=");
+        compareMap.put("大于","<");
+        compareMap.put("大于等于","<=");
+        compareMap.put("小于",">");
+        compareMap.put("小于等于",">=");
         compareMap.put("等于","=");
         compareMap.put("-","-");
         compareMap.put("——","-");

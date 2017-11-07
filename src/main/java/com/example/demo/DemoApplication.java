@@ -19,11 +19,12 @@ public class DemoApplication {
         String query9 = "30-35岁的正处级干部";
         String query10 = "30到35岁之间的正处级干部";
         String query12 = "1990年出生的干部";
-        System.out.print(isNumeric(query12) ? 1:0);
+//        System.out.print(isNumeric(query12) ? 1:0);
 
-        System.out.print(findCommonString("局级单位","北京市教育矫治局（副局级"));
+//        System.out.print(findCommonString("局级单位","北京市教育矫治局（副局级"));
 
-	}
+//        System.out.println(7/2);
+    }
 
     // 过滤特殊字符
     private static String stringFilter(String str){
@@ -56,6 +57,7 @@ public class DemoApplication {
         return true;*/
         return str.matches(".*\\d+.*");
     }
+
 
     private static String maxLength(List<String> list) {
         if(list.isEmpty()) return "";
