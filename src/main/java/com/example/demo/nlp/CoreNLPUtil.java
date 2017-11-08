@@ -1,7 +1,9 @@
 package com.example.demo.nlp;
 
+import edu.stanford.nlp.ie.AbstractSequenceClassifier;
 import edu.stanford.nlp.ie.crf.CRFClassifier;
 import edu.stanford.nlp.ling.CoreLabel;
+import edu.stanford.nlp.tagger.maxent.MaxentTagger;
 
 import java.util.Properties;
 
@@ -11,8 +13,10 @@ import java.util.Properties;
 public class CoreNLPUtil {
 
     private static CRFClassifier<CoreLabel> segment;
+    private static MaxentTagger tagger;
+    private static AbstractSequenceClassifier<CoreLabel> ner;
 
-    public static CRFClassifier<CoreLabel> getSegmentProps(){
+    public static CRFClassifier<CoreLabel> getSegment(){
 
         // 设置一些初始化参数
         Properties props = new Properties();
@@ -26,5 +30,30 @@ public class CoreNLPUtil {
 
         return segment;
     }
+
+    public static AbstractSequenceClassifier<CoreLabel> getNer() {
+
+        String serializedClassifier = "classifiers/chinese.misc.distsim.crf.ser.gz";
+
+        if (ner == null) {
+            ner = CRFClassifier.getClassifierNoExceptions(serializedClassifier);
+        }
+
+        return ner;
+    }
+
+
+    public static MaxentTagger getTagger() {
+
+        // Initialize the tagger
+
+        MaxentTagger maxentTagger = new MaxentTagger("taggers/chinese-distsim.tagger");
+
+        if(tagger == null){
+            tagger = maxentTagger;
+        }
+        return tagger;
+    }
+
 
 }

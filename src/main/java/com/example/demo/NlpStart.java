@@ -7,9 +7,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
-
+import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,7 +19,7 @@ import static com.example.demo.nlp.AlgorithmLibrary.*;
  * Created by jfd on 8/26/17.
  */
 @Component
-public class NlpStart implements CommandLineRunner{
+public class NlpStart{
 
     private static final Logger logger = LoggerFactory.getLogger(NlpStart.class);
     @Autowired
@@ -29,8 +28,8 @@ public class NlpStart implements CommandLineRunner{
     @Autowired
     private Api api;
 
-    @Override
-    public void run(String... strings) throws Exception {
+    @PostConstruct
+    public void run(){
         logger.info("Start segment");
         String query = "少数民族女市管干部";
         String query1 = "干部";
@@ -50,15 +49,10 @@ public class NlpStart implements CommandLineRunner{
         String query15 = "质监局1990年出生的干部";
         String query16 = "八零后干部";
         String query17 = "三十岁的干部";
+        String query18 = "毕业于北京大学的少数民族女干部";
 
-        Map<String, Object> result = search(query9);
+        Map<String, Object> result = search(query18);
         logger.info("\nAfter segment :{}",result);
-
-     /* List<String> list = new ArrayList(){{add("aaa");add("bbbb");add("cc");add("dd");add("r");}};
-        String s = compare1(list);
-        logger.info("s-----> :"+s);*/
-
-//        MATCH (n:Cadre) where n.birthday <'1958-04-05' RETURN n LIMIT 25
 
     }
 
@@ -70,6 +64,7 @@ public class NlpStart implements CommandLineRunner{
      * @return
      */
     public Map<String, Object> search(String query){
+
         List<String> labels = new ArrayList<>();
         Map<String, Object> args = new HashMap<>();
         Map<String, Object> ages = new HashMap<>();
@@ -129,13 +124,16 @@ public class NlpStart implements CommandLineRunner{
      * @param customDict
      * @param labels label的集合
      * @param ages
-     *@param search 搜索的自然语言  @return
+     *@param queryStr 搜索的自然语言  @return
      */
-    private List parse(Map<String, Object> customDict, List<String> labels, Map<String, Object> ages, String search){
+    private List parse(Map<String, Object> customDict, List<String> labels, Map<String, Object> ages, String queryStr){
 
-        String query = specialStringHandle(search);
+        String query = specialStringHandle(queryStr);
 
-        List<String> segments = new ArrayList<>(segmentJob.doSegment(query));
+        Map<String, String> nlp = segmentJob.doNlp(query);
+
+        List<String> segments = new ArrayList<>();
+//                new ArrayList<>(segmentJob.doSegment(query));
 
         Map<String, Object> range = rangeParse(segments);
 
