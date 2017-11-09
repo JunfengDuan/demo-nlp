@@ -20,7 +20,9 @@ import java.net.UnknownHostException;
 
 
 public class ESRest {
+
 	private static Logger logger = LoggerFactory.getLogger(ESRest.class);
+
 	@Value("{esServerHost:localhost}")
 	private String esServerHost;
     @Value("{esServerPort:9300}")

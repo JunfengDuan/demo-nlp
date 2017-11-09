@@ -48,9 +48,11 @@ public class RequestQuery {
 	public QueryBuilder getQueryBuilder() {
 		return this.qb;
 	}
+
 	public void setQBWhere(QueryBuilder qb){
 		this.qbWhere=qb;
 	}
+
 	public QueryBuilder getQBWhere(){
 		return this.qbWhere;
 	}
