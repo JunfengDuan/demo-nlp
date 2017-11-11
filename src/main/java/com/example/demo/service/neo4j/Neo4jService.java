@@ -73,7 +73,7 @@ public class Neo4jService {
     }
     
     private Map map(Object...objects) {
-    	Map<String, Object> map = new HashMap<String, Object>();
+    	Map<String, Object> map = new HashMap<>();
 		
 		int i = objects.length / 2;
 		for(int j = 0; j < i; j ++) {

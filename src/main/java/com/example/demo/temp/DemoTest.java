@@ -1,6 +1,11 @@
 package com.example.demo.temp;
 
 import com.example.demo.service.elasticsearch.ElasticsearchFullSearch;
+import com.example.demo.service.tinkerpop.Neo4jGraph;
+import com.example.demo.service.tinkerpop.graph.Edge;
+import com.example.demo.service.tinkerpop.graph.Vertex;
+import com.example.demo.service.tinkerpop.internal.Neo4jGraphImpl;
+import com.example.demo.service.tinkerpop.traversal.GraphTraversal;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -10,6 +15,7 @@ import java.util.regex.Pattern;
  * Created by jfd on 11/8/17.
  */
 public class DemoTest {
+
 
     public static void main(String[] args){
         String s = "aaaa(sdf证据）几倍322&&是地方";
@@ -30,6 +36,11 @@ public class DemoTest {
         List list = fullSearch.StringMatch("党员", map);
 
         System.out.println("result: "+list);*/
+        Neo4jGraph neo4jGraph = new Neo4jGraphImpl();
+//        List<String> list = neo4jGraph.traversal().V().hasLabel("Cadre").outE().label().toList();
+        List<Edge> edges = neo4jGraph.traversal().V().hasLabel("Cadre").has("name","解元新").outE().toList();
+        edges.forEach(e -> System.out.println(e.label()));
+
 
     }
 
