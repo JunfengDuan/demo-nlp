@@ -37,10 +37,13 @@ public class DemoTest {
 
         System.out.println("result: "+list);*/
         Neo4jGraph neo4jGraph = new Neo4jGraphImpl();
-//        List<String> list = neo4jGraph.traversal().V().hasLabel("Cadre").outE().label().toList();
-        List<Edge> edges = neo4jGraph.traversal().V().hasLabel("Cadre").has("name","解元新").outE().toList();
-        edges.forEach(e -> System.out.println(e.label()));
-
+        List<Vertex> list = neo4jGraph.traversal().V().hasLabel("Cadre").out().out().toList();
+        for (Vertex e : list) {
+            System.out.println(e.label());
+        }
+//        List<Edge> edges = neo4jGraph.traversal().V().hasLabel("Cadre").has("name","解元新").outE().toList();
+//        edges.forEach(e -> System.out.println(e.label()));
+        System.out.println(list);
 
     }
 

@@ -31,7 +31,6 @@ public class Neo4jHttpClient {
 		String ip = System.getProperty("neo4j_ServerIP", NEO4J_IP);
 		
 		String enc = user+":"+password;
-		//bmVvNGo6TmVvNGo=
 		String basic = new BASE64Encoder().encode(enc.getBytes());
 		
 		CloseableHttpClient httpClient = HttpClients.createDefault();

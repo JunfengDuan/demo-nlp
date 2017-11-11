@@ -109,9 +109,10 @@ public interface GraphTraversal<S, E> extends Traversal<S, E> {
 //        return this.addStep(new LabelStep<>(this.asAdmin()));
 //    }
 
-    public default GraphTraversal<S, String> label() {
-        this.asAdmin().getBytecode().addStep(Symbols.label);
-        return this.asAdmin().addStep(new LabelStep(this.asAdmin()));
+    public default GraphTraversal<S, E> label() {
+        Admin<S, E> clone = (Admin<S, E>) this.asAdmin().clone();
+        clone.getBytecode().addStep(Symbols.label);
+        return clone;
     }
 //
 //    /**
