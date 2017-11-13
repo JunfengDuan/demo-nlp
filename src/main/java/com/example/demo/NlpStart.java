@@ -17,9 +17,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import static com.example.demo.nlp.AlgorithmLibrary.*;
 
-/**
- * Created by jfd on 8/26/17.
- */
 @Component
 public class NlpStart{
 
