@@ -4,6 +4,7 @@ import com.example.demo.nlp.AlgorithmLibrary;
 import com.example.demo.nlp.Api;
 import com.example.demo.nlp.SegmentJob;
 import com.example.demo.nlp.SemanticParser;
+import com.example.demo.service.tinkerpop.Neo4jGraph;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,8 @@ public class NlpStart{
 
     @Autowired
     private SemanticParser semanticParser;
+    @Autowired
+    private Neo4jGraph neo4jGraph;
 
     @PostConstruct
     public void run(){
@@ -64,21 +67,18 @@ public class NlpStart{
     public Map<String, Object> search(String query){
 
         List<String> labels = new ArrayList<>();
-        Map<String, Object> args = new HashMap<>();
-        Map<String, Object> ages = new HashMap<>();
+        Map<String, Object> props = new HashMap<>();
         Map<String,Object> customDict = new HashMap<>();
 
-        List<Map<String, Object>> queryResults = semanticParser.parse(customDict, labels, ages, query);
+        //存放属性及其操作 key:cadre.age; value:>30
+        Map<String, Object> args = new HashMap<>();
 
-        queryResults.stream().filter(m -> m.containsKey("antonym") && m.get("antonym")!= null).forEach(map ->{
-            customDict.put((String) map.get("value"), map.get("antonym"));});
+        semanticParser.parse(customDict, labels, props, query);
 
-        if(queryResults.isEmpty()){
-            if(labels.isEmpty())
-                return new HashMap<>();
-        }
+        Map<String,String> doneProps = (Map<String, String>) props.get(semanticParser.DONE);
+        List<Map<String, Object>> todoProps = (List<Map<String, Object>>) props.get(semanticParser.TODO);
 
-        queryResults.forEach(e -> {
+        todoProps.forEach(e -> {
             String key = e.get("label").toString().toLowerCase() +"."+ e.get("field");
             String value = (String) e.get("value");
 
@@ -89,15 +89,16 @@ public class NlpStart{
                 args.put(key, new ArrayList<String>(){{add(value);}});
             }
 
-            if(!labels.contains(e.get("label")))
-                labels.add((String) e.get("label"));
+            String label = (String) e.get("label");
+            if(!labels.contains(label))
+                labels.add(label);
         });
 
         Map<String, Object> params = matcher(args);
 
         //对自定义的属性条件做进一步处理
         Map<String, Object> properties = customPropsHandle(customDict, params);
-        properties.putAll(ages);
+        properties.putAll(doneProps);
 
         return new HashMap(){{put("labels",labels);put("properties",properties);}};
     }

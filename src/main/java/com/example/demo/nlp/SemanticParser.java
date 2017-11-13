@@ -1,5 +1,6 @@
 package com.example.demo.nlp;
 
+import com.example.demo.service.elasticsearch.ElasticsearchFullSearch;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -23,87 +24,151 @@ public class SemanticParser {
     private SegmentJob segmentJob;
     @Autowired
     private Api api;
+    @Autowired
+    private QueryGraph queryGraph;
+    @Autowired
+    private ElasticsearchFullSearch fullSearch;
+
+    public static final String TODO = "todo";
+    public static final String DONE = "done";
 
     /**
      * 对查询词典的返回结果进行解析
      *
      * @param customDict
      * @param labels label的集合
-     * @param ages
+     * @param props 属性的集合
      *@param queryStr 搜索的自然语言  @return
      */
-    public List parse(Map<String, Object> customDict, List<String> labels, Map<String, Object> ages, String queryStr){
+    public void parse(Map<String, Object> customDict, List labels,  Map<String, Object> props, String queryStr){
 
         String query = specialStringHandle(queryStr);
 
-        Map<String, String> nlp = segmentJob.doNlp(query);
+        //实体对齐
+        String kbQuery = entityAlignment(query);
 
-        List<String> segments = new ArrayList<>();
-//                new ArrayList<>(segmentJob.doSegment(query));
+        //自然语言 分词、NER、POS
+        Map<String, String> nlp = segmentJob.doNlp(kbQuery);
 
-        Map<String, Object> range = rangeParse(segments);
+        //年龄处理
+        List<String> segments = new ArrayList<>(Collections.unmodifiableCollection(nlp.keySet()));
+        Map<String, Object> range = ageRangeParse(segments);
 
         segments = (List<String>) range.get("removeAgeWords");
         List<String> age = (List<String>) range.get("age");
 
         if(age != null && !age.isEmpty()){
             Map<String,String> birthMap = ageToBirth(age);
-            ages.putAll(birthMap);
+            props.put(DONE, birthMap);
         }
 
-        List<String> words0 = addToCustomDict(customDict, segments);
+        //去非后的分词
+        List<String> words = addToCustomDict(customDict, segments);
 
-        List<String> words = cutSingleWord(words0);
+        //实体链接
+        List<String> entityWords = extractEntityWords(nlp, words);
+        String topicWordsString = StringUtils.join(entityWords, " ");
 
-        String segmentString = StringUtils.join(words, " ");
+        List<String> topicWords = new ArrayList<>();
+        Map<String,String> entityNames = new HashMap<>();
+        entityMatch(topicWordsString, topicWords, entityNames);
 
-        List<String> entityNames = new ArrayList<>();
+        //属性链接
+        List<String> entityRemovedWords = words.stream().filter(w -> !topicWords.contains(w)).collect(Collectors.toList());
+        List<Map<String, Object>> propsList = propMatch(entityRemovedWords);
 
-        List<Map<String, Object>> entityList = api.StringMatch(segmentString);
-        if(!entityList.isEmpty()){
-            entityList.forEach(e ->{
-                String name = (String) e.get("name");
-                if(words.contains(name)) {
-                    labels.add((String) e.get("label"));
-                    entityNames.add(name);
-                }
-            } );
-        }
-
-        words.removeAll(entityNames);
-
-        List<Map<String, Object>> fieldsList = new ArrayList<>();
-        words.stream().map(word -> api.StringMatch(word)).forEach(fieldsList :: addAll);
 
         String remain = StringUtils.join(words, "").trim();
 
-        List<Map<String, Object>> collect = fieldsList.stream().filter(fields -> {
+        List<Map<String, Object>> containedProps = propsList.stream().filter(fields -> {
             String value = fields.get("value") == null ? "" : (String) fields.get("value");
-            return remain.equalsIgnoreCase(value.trim());
+            value = stringFilter(value);
+            return remain.contains(value.trim());
         }).collect(Collectors.toList());
 
-        if (collect.size()>0){
-            return collect;
-        }
 
-        List<Map<String, Object>> containedFields = fieldsList.stream().filter(fields -> {
-            String value = fields.get("value") == null ? "" : (String) fields.get("value");
-            return query.contains(value.trim());
-        }).collect(Collectors.toList());
-
-        Set<Object> fields = new HashSet<>();
-        containedFields.stream().map(map -> map.get("field")).forEach(fields :: add);
-        boolean fullMatch = (words.size() <= fields.size());
-
-        //如果用户输入的查询不完整,就要作反向匹配。比如 query="北京市局级单位"， fieldsList=[value=(正)局级,value=(副局)级]
-        if(!fullMatch){
-            words.stream().map(w -> filter(fieldsList, w)).forEach(containedFields :: addAll);
-        }
-
-        return containedFields;
+        labels.add(entityNames);
+        props.put(TODO, containedProps);
     }
 
+    private List<Map<String, Object>> propMatch(List<String> entityRemovedWords) {
+        Map<String, Object> map  = new HashMap<>();
+        map.put("type", "propDict");
+        map.put("size", 20);
 
+        List<String> conjunctions = new ArrayList();
+        conjunctions.add("AS");
+        conjunctions.add("DEC");
+        conjunctions.add("DEG");
+        conjunctions.add("DER");
+        conjunctions.add("DEV");
+        conjunctions.add("CC");
+        conjunctions.add("P");
+        conjunctions.add("SP");
+        conjunctions.add("VC");
+        conjunctions.add("PN");
+        conjunctions.add("PU");
+
+        List<Map<String, Object>> propsList = new ArrayList<>();
+        entityRemovedWords.stream().filter(e -> !conjunctions.contains(e))
+                .map(word -> fullSearch.StringMatch(word, map)).forEach(propsList :: addAll);
+        return propsList;
+    }
+
+    private String entityAlignment(String query) {
+        Map<String, Object> map  = new HashMap<>();
+        map.put("type", "customDict");
+        map.put("size", 20);
+        List<Map<String, Object>> alignmentList = fullSearch.StringMatch(query, map);
+        if(!alignmentList.isEmpty()){
+            for(Map e: alignmentList){
+                String cx_value = (String) e.get("cx_value");
+                String kb_value = (String) e.get("kb_value");
+                query = query.replace(cx_value, kb_value);
+            }
+        }
+        return query;
+    }
+
+    private void entityMatch(String topicWordsString, List<String> topicWords, Map<String, String> entityNames) {
+        Map<String, Object> map  = new HashMap<>();
+        map.put("type", "entityDict");
+        map.put("size", 10);
+        List<Map<String, Object>> entityList = fullSearch.StringMatch(topicWordsString, map);
+
+        if(!entityList.isEmpty()){
+            entityList.stream().filter(e -> topicWordsString.contains((String) e.get("cn_name"))).forEach(e ->{
+                String cn_name = (String) e.get("cn_name");
+                topicWords.add(cn_name);
+                String label = (String) e.get("en_name");
+                String type = (String) e.get("type");
+                entityNames.put("label", label);
+                entityNames.put("type", type);
+            } );
+        }
+    }
+
+    /**
+     * 根据词性提取名词、动词
+     * @param nlp
+     * @param words
+     * @return
+     */
+    private List<String> extractEntityWords(Map<String, String> nlp, List<String> words) {
+        List<String> nounsAndVerbs = new ArrayList();
+        nounsAndVerbs.add("NN");
+        nounsAndVerbs.add("NR");
+        nounsAndVerbs.add("VV");
+        return nlp.entrySet().stream().filter(entry -> words.contains(entry.getKey())
+                && nounsAndVerbs.contains(entry.getValue())).map(e -> e.getKey()).collect(Collectors.toList());
+    }
+
+    /**
+     * 添加反义词到自定义词典
+     * @param customDict
+     * @param segments
+     * @return
+     */
     private List<String> addToCustomDict(Map<String, Object> customDict, List<String> segments) {
         if(!segments.contains("非")) return segments;
         segments.forEach(s -> {
@@ -118,40 +183,11 @@ public class SemanticParser {
     }
 
     private String specialStringHandle(String search) {
-        search = search.contains("非") ? search.replace("非", " 非 ") : search;
         search = search.contains("-") ? search.replace("-", " - ") : search;
         search = search.contains("——") ? search.replace("——", " —— ") : search;
         return search;
     }
 
-    /**
-     * 排除查询语句中的介词、单个无意义词
-     * @param words
-     * @return
-     */
-    private List<String> cutSingleWord(List<String> words) {
-        String[] s = {"是","的","了","在","于"};
-        List<String> unavailableWords = Arrays.asList(s);
-        List<String> strings = words.stream().filter(word -> !unavailableWords.contains(word)).collect(Collectors.toList());
-        return strings;
-    }
-
-
-    /**
-     * 当输入的查询语句不包含完整属性的时候，就用词典中的属性去匹配查询
-     * @param fieldsList
-     * @param s
-     * @return
-     */
-    private List<Map<String,Object>> filter(List<Map<String, Object>> fieldsList, String s){
-        List<Map<String, Object>> list = fieldsList.stream().filter(fields -> {
-            String value = fields.get("value") == null ? "" : (String) fields.get("value");
-            value = stringFilter(value);
-            return value.contains(s.trim());
-        }).collect(Collectors.toList());
-
-        return list;
-    }
 
     // 过滤特殊字符
     private String stringFilter(String str){
@@ -162,7 +198,7 @@ public class SemanticParser {
     }
 
     // 年龄范围解析
-    private Map<String, Object> rangeParse(List<String> wordsList){
+    private Map<String, Object> ageRangeParse(List<String> wordsList){
         List<String> ageList = new ArrayList<>();
         List<String> words = new ArrayList<>();
 
