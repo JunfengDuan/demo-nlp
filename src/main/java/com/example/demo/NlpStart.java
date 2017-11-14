@@ -1,9 +1,6 @@
 package com.example.demo;
 
-import com.example.demo.nlp.AlgorithmLibrary;
-import com.example.demo.nlp.Api;
-import com.example.demo.nlp.SegmentJob;
-import com.example.demo.nlp.SemanticParser;
+import com.example.demo.nlp.*;
 import com.example.demo.service.tinkerpop.Neo4jGraph;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -16,6 +13,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import static com.example.demo.nlp.AlgorithmLibrary.*;
+import static java.util.stream.Collectors.toList;
+import static com.example.demo.nlp.StringConst.*;
 
 @Component
 public class NlpStart{
@@ -25,7 +24,9 @@ public class NlpStart{
     @Autowired
     private SemanticParser semanticParser;
     @Autowired
-    private Neo4jGraph neo4jGraph;
+    private QueryGraph queryGraph;
+
+
 
     @PostConstruct
     public void run(){
@@ -63,8 +64,8 @@ public class NlpStart{
      */
     public Map<String, Object> search(String query){
 
-        List<String> labels = new ArrayList<>();
-        Map<String, Object> props = new HashMap<>();
+        List<Map<String, String>> labels = new ArrayList<>();
+        List<Map<String, Object>> props = new ArrayList<>();
         Map<String,Object> customDict = new HashMap<>();
 
         //存放属性及其操作 key:cadre.age; value:>30
@@ -72,12 +73,14 @@ public class NlpStart{
 
         semanticParser.parse(customDict, labels, props, query);
 
-        Map<String,String> doneProps = (Map<String, String>) props.get(semanticParser.DONE);
-        List<Map<String, Object>> todoProps = (List<Map<String, Object>>) props.get(semanticParser.TODO);
+        //利用知识库作实体、关系的筛选
+        entityLinkedWithKB(labels, props);
 
-        todoProps.forEach(e -> {
-            String key = e.get("label").toString().toLowerCase() +"."+ e.get("field");
-            String value = (String) e.get("value");
+
+        props.forEach(e -> {
+            String key = (String) e.get(LABEL);
+            String field = (String) e.get(FIELD);
+            String value = (String) e.get(VALUE);
 
             if(args.containsKey(key)){
                 List<String> values = (List<String>) args.get(key);
@@ -86,18 +89,28 @@ public class NlpStart{
                 args.put(key, new ArrayList<String>(){{add(value);}});
             }
 
-            String label = (String) e.get("label");
+            String label = (String) e.get(LABEL);
+            String type = (String) e.get(TYPE);
+            Map<String,String> labelMap = new HashMap(){{put(LABEL, label);put(TYPE, type);}};
             if(!labels.contains(label))
-                labels.add(label);
+                labels.add(labelMap);
         });
 
         Map<String, Object> params = matcher(args);
 
         //对自定义的属性条件做进一步处理
         Map<String, Object> properties = customPropsHandle(customDict, params);
-        properties.putAll(doneProps);
 
-        return new HashMap(){{put("labels",labels);put("properties",properties);}};
+
+        return new HashMap(){{put(LABEL,labels);put("properties",properties);}};
+    }
+
+    private void entityLinkedWithKB(List<Map<String, String>> labels, List<Map<String, Object>> todoProps) {
+        List<String> labelList = new ArrayList<>();
+        labels.stream().map(l -> l.get(LABEL)).forEach(labelList :: add);
+        todoProps.stream().map(p -> (String) p.get(LABEL)).forEach(labelList :: add);
+        List<List> oneStep = labelList.stream().map(label -> queryGraph.oneStep(label)).flatMap(list -> list.stream()).collect(toList());
+
     }
 
     private Map<String, Object> customPropsHandle(Map<String, Object> customDict, Map<String, Object> params) {

@@ -7,10 +7,7 @@ import com.example.demo.service.tinkerpop.traversal.Neo4jHttpClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -44,6 +41,18 @@ public class QueryGraph {
 
         return new HashMap(){{put(R1, edgesSet); put(E1, verticesSet);}};
     }
+
+    /**
+     * [[Cadre,Study,School],[Cadre,Position,Organization],[]]
+     * @param label
+     * @return
+     */
+    public List<List> oneStep(String label){
+
+
+        return new ArrayList<>();
+    }
+
 
 
     /**

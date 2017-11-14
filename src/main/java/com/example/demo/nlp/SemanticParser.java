@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import static com.example.demo.nlp.AlgorithmLibrary.chineseNumbers;
 import static com.example.demo.nlp.AlgorithmLibrary.connect2Num;
 import static com.example.demo.nlp.AlgorithmLibrary.convert2Num;
+import static com.example.demo.nlp.StringConst.*;
 
 /**
  * Created by jfd on 11/11/17.
@@ -24,13 +25,9 @@ public class SemanticParser {
     private SegmentJob segmentJob;
     @Autowired
     private Api api;
-    @Autowired
-    private QueryGraph queryGraph;
+
     @Autowired
     private ElasticsearchFullSearch fullSearch;
-
-    public static final String TODO = "todo";
-    public static final String DONE = "done";
 
     /**
      * 对查询词典的返回结果进行解析
@@ -40,7 +37,7 @@ public class SemanticParser {
      * @param props 属性的集合
      *@param queryStr 搜索的自然语言  @return
      */
-    public void parse(Map<String, Object> customDict, List labels,  Map<String, Object> props, String queryStr){
+    public void parse(Map<String, Object> customDict, List labels,  List<Map<String, Object>> props, String queryStr){
 
         String query = specialStringHandle(queryStr);
 
@@ -58,8 +55,9 @@ public class SemanticParser {
         List<String> age = (List<String>) range.get("age");
 
         if(age != null && !age.isEmpty()){
-            Map<String,String> birthMap = ageToBirth(age);
-            props.put(DONE, birthMap);
+            List<Map<String,Object>> birthMap = ageToBirth(age);
+            props.addAll(birthMap);
+            labels.add(new HashMap(){{put("label","Cadre");put("type", "e");}});
         }
 
         //去非后的分词
@@ -70,7 +68,7 @@ public class SemanticParser {
         String topicWordsString = StringUtils.join(entityWords, " ");
 
         List<String> topicWords = new ArrayList<>();
-        Map<String,String> entityNames = new HashMap<>();
+        List<Map<String,Object>> entityNames = new ArrayList<>();
         entityMatch(topicWordsString, topicWords, entityNames);
 
         //属性链接
@@ -86,9 +84,8 @@ public class SemanticParser {
             return remain.contains(value.trim());
         }).collect(Collectors.toList());
 
-
-        labels.add(entityNames);
-        props.put(TODO, containedProps);
+        labels.addAll(entityNames);
+        props.addAll( containedProps);
     }
 
     private List<Map<String, Object>> propMatch(List<String> entityRemovedWords) {
@@ -130,7 +127,7 @@ public class SemanticParser {
         return query;
     }
 
-    private void entityMatch(String topicWordsString, List<String> topicWords, Map<String, String> entityNames) {
+    private void entityMatch(String topicWordsString, List<String> topicWords, List<Map<String,Object>> entityNames) {
         Map<String, Object> map  = new HashMap<>();
         map.put("type", "entityDict");
         map.put("size", 10);
@@ -142,8 +139,7 @@ public class SemanticParser {
                 topicWords.add(cn_name);
                 String label = (String) e.get("en_name");
                 String type = (String) e.get("type");
-                entityNames.put("label", label);
-                entityNames.put("type", type);
+                entityNames.add(new HashMap(){{put("label", label);put("type", type);}});
             } );
         }
     }
@@ -299,16 +295,14 @@ public class SemanticParser {
         return sb.toString();
     }
 
-    private Map<String,String> ageToBirth(List<String> ages) {
-        Map<String,String> birthdayMap = new HashMap<>();
-        List<String> collect = new ArrayList<>();
+    private List<Map<String, Object>> ageToBirth(List<String> ages) {
+        List<Map<String,Object>> birthdayMap = new ArrayList<>();
         ages.forEach(age -> {
             String[] operatorAndAge = StringUtils.split(age, " ");
             String birthday = getBirthday(operatorAndAge[1]);
-            collect.add(operatorAndAge[0]+"'"+birthday+"'");
+            birthdayMap.add(new HashMap(){{put(LABEL,"Cadre");put(FIELD,"birthday");put(OP,operatorAndAge[0]);put(VALUE,birthday);}});
 
         });
-        birthdayMap.put("cadre.birthday", StringUtils.join(collect, " and cadre.birthday "));
         return birthdayMap;
     }
 
