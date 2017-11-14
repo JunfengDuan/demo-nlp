@@ -19,7 +19,7 @@ public class Api {
     public List<String> compareList;
     public Map<String,String> compareMap;
 
-    Api(){constructDict();constructCustomDict();}
+    Api(){constructCustomDict();}
 
     public List StringMatch(String query){
 

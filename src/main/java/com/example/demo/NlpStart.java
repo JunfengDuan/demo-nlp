@@ -64,11 +64,11 @@ public class NlpStart{
      */
     public Map<String, Object> search(String query){
 
-        List<Map<String, String>> labels = new ArrayList<>();
+        List<Map<String, Object>> labels = new ArrayList<>();
         List<Map<String, Object>> props = new ArrayList<>();
         Map<String,Object> customDict = new HashMap<>();
 
-        //存放属性及其操作 key:cadre.age; value:>30
+        //存放属性及其操作 key:Cadre.age; value:>30
         Map<String, Object> args = new HashMap<>();
 
         semanticParser.parse(customDict, labels, props, query);
@@ -78,8 +78,7 @@ public class NlpStart{
 
 
         props.forEach(e -> {
-            String key = (String) e.get(LABEL);
-            String field = (String) e.get(FIELD);
+            String key = e.get(LABEL) +"."+ e.get(FIELD);
             String value = (String) e.get(VALUE);
 
             if(args.containsKey(key)){
@@ -91,7 +90,7 @@ public class NlpStart{
 
             String label = (String) e.get(LABEL);
             String type = (String) e.get(TYPE);
-            Map<String,String> labelMap = new HashMap(){{put(LABEL, label);put(TYPE, type);}};
+            Map<String,Object> labelMap = new HashMap(){{put(LABEL, label);put(TYPE, type);}};
             if(!labels.contains(label))
                 labels.add(labelMap);
         });
@@ -105,9 +104,9 @@ public class NlpStart{
         return new HashMap(){{put(LABEL,labels);put("properties",properties);}};
     }
 
-    private void entityLinkedWithKB(List<Map<String, String>> labels, List<Map<String, Object>> todoProps) {
+    private void entityLinkedWithKB(List<Map<String, Object>> labels, List<Map<String, Object>> todoProps) {
         List<String> labelList = new ArrayList<>();
-        labels.stream().map(l -> l.get(LABEL)).forEach(labelList :: add);
+        labels.stream().map(l -> (String)l.get(LABEL)).forEach(labelList :: add);
         todoProps.stream().map(p -> (String) p.get(LABEL)).forEach(labelList :: add);
         List<List> oneStep = labelList.stream().map(label -> queryGraph.oneStep(label)).flatMap(list -> list.stream()).collect(toList());
 

@@ -25,7 +25,6 @@ public class SemanticParser {
     private SegmentJob segmentJob;
     @Autowired
     private Api api;
-
     @Autowired
     private ElasticsearchFullSearch fullSearch;
 
@@ -37,7 +36,7 @@ public class SemanticParser {
      * @param props 属性的集合
      *@param queryStr 搜索的自然语言  @return
      */
-    public void parse(Map<String, Object> customDict, List labels,  List<Map<String, Object>> props, String queryStr){
+    public void parse(Map<String, Object> customDict, List<Map<String, Object>> labels,  List<Map<String, Object>> props, String queryStr){
 
         String query = specialStringHandle(queryStr);
 
