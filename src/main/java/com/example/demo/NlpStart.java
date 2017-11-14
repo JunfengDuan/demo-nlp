@@ -1,7 +1,6 @@
 package com.example.demo;
 
 import com.example.demo.nlp.*;
-import com.example.demo.service.tinkerpop.Neo4jGraph;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,10 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import static com.example.demo.nlp.AlgorithmLibrary.*;
+
 import static java.util.stream.Collectors.toList;
 import static com.example.demo.nlp.StringConst.*;
 
@@ -64,7 +60,9 @@ public class NlpStart{
      */
     public Map<String, Object> search(String query){
 
+        //label,type
         List<Map<String, Object>> labels = new ArrayList<>();
+        //label,field,value,type,op
         List<Map<String, Object>> props = new ArrayList<>();
         Map<String,Object> customDict = new HashMap<>();
 
@@ -73,10 +71,24 @@ public class NlpStart{
 
         semanticParser.parse(customDict, labels, props, query);
 
-        //利用知识库作实体、关系的筛选
+        //利用知识库对候选实体、关系的筛选
         entityLinkedWithKB(labels, props);
 
+        //对候选属性筛选
+        List<Map<String, Object>> properties = propertiesFilter(labels, props, customDict, args);
 
+        return new HashMap(){{put(LABEL,labels);put("properties",properties);}};
+    }
+
+    private void entityLinkedWithKB(List<Map<String, Object>> labels, List<Map<String, Object>> todoProps) {
+        List<String> labelList = new ArrayList<>();
+        labels.stream().map(l -> (String)l.get(LABEL)).forEach(labelList :: add);
+        todoProps.stream().map(p -> (String) p.get(LABEL)).forEach(labelList :: add);
+        List<List> oneStep = labelList.stream().map(label -> queryGraph.oneStep(label)).flatMap(list -> list.stream()).collect(toList());
+
+    }
+
+    private List<Map<String, Object>> propertiesFilter(List<Map<String, Object>> labels, List<Map<String, Object>> props, Map<String, Object> customDict, Map<String, Object> args) {
         props.forEach(e -> {
             String key = e.get(LABEL) +"."+ e.get(FIELD);
             String value = (String) e.get(VALUE);
@@ -96,33 +108,38 @@ public class NlpStart{
         });
 
         Map<String, Object> params = matcher(args);
+        List<Map<String, Object>> rcp = props.stream().map(m -> recombineProps(params, m)).collect(toList());
 
         //对自定义的属性条件做进一步处理
-        Map<String, Object> properties = customPropsHandle(customDict, params);
-
-
-        return new HashMap(){{put(LABEL,labels);put("properties",properties);}};
+        return customPropsHandle(customDict, rcp);
     }
 
-    private void entityLinkedWithKB(List<Map<String, Object>> labels, List<Map<String, Object>> todoProps) {
-        List<String> labelList = new ArrayList<>();
-        labels.stream().map(l -> (String)l.get(LABEL)).forEach(labelList :: add);
-        todoProps.stream().map(p -> (String) p.get(LABEL)).forEach(labelList :: add);
-        List<List> oneStep = labelList.stream().map(label -> queryGraph.oneStep(label)).flatMap(list -> list.stream()).collect(toList());
-
-    }
-
-    private Map<String, Object> customPropsHandle(Map<String, Object> customDict, Map<String, Object> params) {
-        Map<String,Object> properties = new HashMap<>();
+    private Map<String, Object> recombineProps(Map<String, Object> params, Map<String, Object> m) {
+        if(params ==null || params.isEmpty()) return m;
+        String label = (String) m.get(LABEL);
+        String field = (String) m.get(FIELD);
         params.entrySet().forEach(entry -> {
-            String value = (String) entry.getValue();
-            if(customDict.containsKey(value)){
-                value = " <> '" +customDict.get(value)+"'";
-            }else {
-                value = " contains '"+value+"'";
+            String[] key = entry.getKey().split(".");
+            if(label.equals(key[0]) && field.equals(key[1])){
+                m.put(VALUE,entry.getValue());
             }
-            properties.put(entry.getKey(), value);
         });
+        return m;
+    }
+
+    private List<Map<String, Object>> customPropsHandle(Map<String, Object> customDict, List<Map<String, Object>> params) {
+        List<Map<String, Object>> properties = new ArrayList<>();
+        for(Map m : params){
+            String value = (String) m.get(VALUE);
+            String op = (String) m.get(OP);
+            if(StringUtils.isNotEmpty(op)) continue;
+            if(customDict.containsKey(value)){
+                String v = ((String) customDict.get(value)).trim();
+                properties.add(new HashMap(){{put(VALUE,v);put(OP,"<>");}});
+            }else {
+                properties.add(new HashMap(){{put(VALUE,value);put(OP,"=");}});
+            }
+        }
         return properties;
     }
 

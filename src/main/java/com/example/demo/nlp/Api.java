@@ -120,6 +120,7 @@ public class Api {
         compareList.add("小于");
         compareList.add("小于等于");
         compareList.add("等于");
+        compareList.add("不等于");
         compareList.add("-");
         compareList.add("——");
         compareList.add("到");
@@ -130,6 +131,7 @@ public class Api {
         compareMap.put("小于",">");
         compareMap.put("小于等于",">=");
         compareMap.put("等于","=");
+        compareMap.put("不等于","<>");
         compareMap.put("-","-");
         compareMap.put("——","-");
         compareMap.put("到","-");
