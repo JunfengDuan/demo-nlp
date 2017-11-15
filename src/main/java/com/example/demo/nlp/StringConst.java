@@ -9,4 +9,9 @@ public interface StringConst {
     String VALUE = "value";
     String TYPE = "type";
     String OP = "op";
+
+    String RDF = "rdf";
+    String SCORE = "score";
+
+    String PROPERTIES = "properties";
 }

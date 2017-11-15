@@ -7,6 +7,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.springframework.stereotype.Component;
 import sun.misc.BASE64Encoder;
 
 import java.io.IOException;
@@ -18,13 +19,14 @@ import java.util.HashMap;
  * @author liwei 2017-08-17
  *
  */
+@Component
 public class Neo4jHttpClient {
 	private final static String NEO4J_USER = "neo4j";
 	private final static String NEO4J_PASSWORD = "Neo4j";
 	private final static String NEO4J_IP = "192.168.1.151";
 	private final static String NEO4J_PORT = "7474";
 	
-	public static Object execute(String script) {
+	public Object execute(String script) {
 		String user = System.getProperty("neo4j_user", NEO4J_USER);
 		String password = System.getProperty("neo4j_password", NEO4J_PASSWORD);
 		String port = System.getProperty("neo4j_ServerPort", NEO4J_PORT);

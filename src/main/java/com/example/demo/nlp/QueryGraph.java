@@ -18,6 +18,9 @@ public class QueryGraph {
 
     @Autowired
     private Neo4jGraph neo4jGraph;
+    @Autowired
+    private Neo4jHttpClient neo4jHttpClient;
+
     private static final String R1 = "r1";
     private static final String E1 = "e1";
     private static final String R2 = "r2";
@@ -48,12 +51,16 @@ public class QueryGraph {
      * @return
      */
     public List<List> oneStep(String label){
+        String script = "";
+        neo4jHttpClient.execute(script);
+        return new ArrayList<>();
+    }
+
+    public List<List> twoStep(String label){
 
 
         return new ArrayList<>();
     }
-
-
 
     /**
      * http://192.168.1.151:7474/tp/gremlin/execute?script=g.V().hasLabel(%22Cadre%22).out().outE().label().toSet()
