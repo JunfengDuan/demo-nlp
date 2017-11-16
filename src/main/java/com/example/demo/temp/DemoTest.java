@@ -1,11 +1,6 @@
 package com.example.demo.temp;
 
-import com.example.demo.service.elasticsearch.ElasticsearchFullSearch;
-import com.example.demo.service.tinkerpop.Neo4jGraph;
-import com.example.demo.service.tinkerpop.graph.Edge;
-import com.example.demo.service.tinkerpop.graph.Vertex;
-import com.example.demo.service.tinkerpop.internal.Neo4jGraphImpl;
-import com.example.demo.service.tinkerpop.traversal.GraphTraversal;
+import com.example.demo.nlp.QueryGraph;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -15,7 +10,6 @@ import java.util.regex.Pattern;
  * Created by jfd on 11/8/17.
  */
 public class DemoTest {
-
 
     public static void main(String[] args){
         String s = "aaaa(sdf证据）几倍322&&是地方";
@@ -35,16 +29,10 @@ public class DemoTest {
         map.put("size", 10);
         List list = fullSearch.StringMatch("党员", map);
 
-        System.out.println("result: "+list);*/
-        Neo4jGraph neo4jGraph = new Neo4jGraphImpl();
-        List<Vertex> list = neo4jGraph.traversal().V().hasLabel("Cadre").out().out().toList();
-        for (Vertex e : list) {
-            System.out.println(e.label());
-        }
-//        List<Edge> edges = neo4jGraph.traversal().V().hasLabel("Cadre").has("name","解元新").outE().toList();
-//        edges.forEach(e -> System.out.println(e.label()));
-        System.out.println(list);
-
+        QueryGraph queryGraph = new QueryGraph();
+        List<List> oneStep = queryGraph.oneStep("Cadre");
+        System.out.println(oneStep);
+*/
     }
 
 

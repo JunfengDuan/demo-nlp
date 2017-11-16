@@ -1,4 +1,4 @@
-package com.example.demo.service.tinkerpop.traversal;
+package com.example.demo.service.tinkerpop;
 
 import com.alibaba.fastjson.JSONObject;
 import org.apache.http.HttpResponse;
@@ -27,12 +27,8 @@ public class Neo4jHttpClient {
 	private final static String NEO4J_PORT = "7474";
 	
 	public Object execute(String script) {
-		String user = System.getProperty("neo4j_user", NEO4J_USER);
-		String password = System.getProperty("neo4j_password", NEO4J_PASSWORD);
-		String port = System.getProperty("neo4j_ServerPort", NEO4J_PORT);
-		String ip = System.getProperty("neo4j_ServerIP", NEO4J_IP);
 		
-		String enc = user+":"+password;
+		String enc = NEO4J_USER+":"+NEO4J_PASSWORD;
 		String basic = new BASE64Encoder().encode(enc.getBytes());
 		
 		CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -47,7 +43,7 @@ public class Neo4jHttpClient {
         
         String uri = "";
 		try {
-			uri = "http://"+ ip + ":" + port + "/tp/gremlin/execute?script=g."+URLEncoder.encode(script,"UTF-8");
+			uri = "http://"+ NEO4J_IP + ":" + NEO4J_PORT + "/tp/gremlin/execute?script="+URLEncoder.encode(script,"UTF-8");
 		} catch (UnsupportedEncodingException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
@@ -63,7 +59,6 @@ public class Neo4jHttpClient {
         	HttpResponse httpResponse = httpClient.execute(httpRequest);
             String strResult = "";
             if(httpResponse != null){
-               // System.out.println(httpResponse.getStatusLine().getStatusCode());
                 if (httpResponse.getStatusLine().getStatusCode() == 200) {
                     strResult = EntityUtils.toString(httpResponse.getEntity());
                     JSONObject jsonResult = JSONObject.parseObject(strResult);
@@ -82,8 +77,7 @@ public class Neo4jHttpClient {
             }else{
             	
             }
-            //System.out.println(strResult);
-            
+
             return strResult.toString();
         } catch (Exception e) {
             e.printStackTrace();
