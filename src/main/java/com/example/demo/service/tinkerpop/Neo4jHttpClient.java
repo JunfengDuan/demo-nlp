@@ -7,9 +7,13 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import sun.misc.BASE64Encoder;
 
+import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -21,34 +25,48 @@ import java.util.HashMap;
  */
 @Component
 public class Neo4jHttpClient {
-	private final static String NEO4J_USER = "neo4j";
-	private final static String NEO4J_PASSWORD = "Neo4j";
-	private final static String NEO4J_IP = "192.168.1.151";
-	private final static String NEO4J_PORT = "7474";
-	
-	public Object execute(String script) {
-		
-		String enc = NEO4J_USER+":"+NEO4J_PASSWORD;
-		String basic = new BASE64Encoder().encode(enc.getBytes());
-		
-		CloseableHttpClient httpClient = HttpClients.createDefault();
-		
-		//配置超时时间
-        RequestConfig requestConfig = RequestConfig.custom().
+
+    private static Logger logger = LoggerFactory.getLogger(Neo4jHttpClient.class);
+    @Value("${neo4jIp:localhost:7474}")
+    private String neo4jIp;
+    @Value("${neo4jUsername:neo4j}")
+    private String neo4jUsername;
+    @Value("${neo4jPassword:Neo4j}")
+    private String neo4jPassword;
+
+    private CloseableHttpClient httpClient;
+    private RequestConfig requestConfig;
+    private String gremlinUrl;
+    private String basic;
+
+    @PostConstruct
+    private void initNeo4jClient(){
+
+        gremlinUrl = "http://"+ neo4jIp + "/tp/gremlin/execute?script=";
+        String enc = neo4jUsername +":"+ neo4jPassword;
+        basic = new BASE64Encoder().encode(enc.getBytes());
+
+        //配置超时时间
+        requestConfig = RequestConfig.custom().
                 setConnectTimeout(10000)//设置连接超时时间
                 .setConnectionRequestTimeout(10000)// 设置请求超时时间
                 .setSocketTimeout(10000)
                 .setRedirectsEnabled(true)//默认允许自动重定向
                 .build();
-        
+
+
+    }
+	
+	public Object execute(String script) {
         String uri = "";
 		try {
-			uri = "http://"+ NEO4J_IP + ":" + NEO4J_PORT + "/tp/gremlin/execute?script="+URLEncoder.encode(script,"UTF-8");
+			uri = gremlinUrl + URLEncoder.encode(script,"UTF-8");
+			logger.debug("GremlinUri is {}",uri);
 		} catch (UnsupportedEncodingException e1) {
-			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
-        
+
+        httpClient = HttpClients.createDefault();
 	    HttpGet httpRequest = new HttpGet(uri);
 	    
 		try {

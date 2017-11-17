@@ -28,6 +28,7 @@ public class ElasticsearchFullSearch {
     private RequestQuery requestQuery;
     @Autowired
     private ESRest esRest;
+
     /**
      * 使用ES中的词典,对搜索内容作字符串匹配
      */

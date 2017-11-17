@@ -2,6 +2,8 @@ package com.example.demo.nlp;
 
 import com.example.demo.service.elasticsearch.ElasticsearchFullSearch;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +22,8 @@ import static com.example.demo.nlp.StringConst.*;
  */
 @Component
 public class SemanticParser {
+
+    private static final Logger logger = LoggerFactory.getLogger(SemanticParser.class);
 
     @Autowired
     private SegmentJob segmentJob;
@@ -45,6 +49,7 @@ public class SemanticParser {
 
         //自然语言 分词、NER、POS
         Map<String, String> nlp = segmentJob.doNlp(kbQuery);
+        logger.debug("NLP:{}",nlp);
 
         //年龄处理
         List<String> segments = new ArrayList<>(Collections.unmodifiableCollection(nlp.keySet()));
@@ -69,6 +74,7 @@ public class SemanticParser {
         List<String> topicWords = new ArrayList<>();
         List<Map<String,Object>> entityNames = new ArrayList<>();
         entityMatch(topicWordsString, topicWords, entityNames);
+        logger.debug("Entity link:{}",entityNames);
 
         //属性链接
         List<String> entityRemovedWords = words.stream().filter(w -> !topicWords.contains(w)).collect(Collectors.toList());
@@ -82,6 +88,7 @@ public class SemanticParser {
             value = stringFilter(value);
             return remain.contains(value.trim());
         }).collect(Collectors.toList());
+        logger.debug("Property link:{}",containedProps);
 
         labels.addAll(entityNames);
         props.addAll( containedProps);

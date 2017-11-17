@@ -27,6 +27,7 @@ public class NlpStart{
     @PostConstruct
     public void run(){
         logger.info("Start segment");
+        String query0 ="北京大学";
         String query = "少数民族女市管干部";
         String query1 = "干部";
         String query2 = "少数民族女";
@@ -47,7 +48,7 @@ public class NlpStart{
         String query17 = "三十岁的干部";
         String query18 = "毕业于北京大学的少数民族女干部";
 
-        Map<String, Object> result = search(query18);
+        Map<String, Object> result = search(query0);
         logger.info("\nAfter segment :{}",result);
 
     }
@@ -80,13 +81,15 @@ public class NlpStart{
         removeDuplicate(labelResult);
 
         //利用知识库对候选实体、关系的筛选
-        entityLinkedWithKB(labelResult);
+        List<String> linkedWithKB = entityLinkedWithKB(labelResult);
+        logger.debug("LinkedWithKB:{}",linkedWithKB);
 
         //对候选属性筛选
         List<Map<String, Object>> properties = propertiesFilter(props, customDict, args);
-        Set<Map<String, Object>> propertyResult = properties.stream().filter(map -> labelResult.contains(map.get(LABEL))).collect(toSet());
+        Set<Map<String, Object>> propertyResult = properties.stream().filter(map -> linkedWithKB.contains(map.get(LABEL))).collect(toSet());
 
-        return new HashMap(){{put(LABEL,labelResult);put(PROPERTIES,propertyResult);}};
+        logger.debug("Filtered properties:{}",propertyResult);
+        return new HashMap(){{put(LABEL,linkedWithKB);put(PROPERTIES,propertyResult);}};
     }
 
     /**
@@ -102,6 +105,7 @@ public class NlpStart{
         List<List> twoStep = hangLabels.stream().map(label -> queryGraph.twoStep(label)).flatMap(list -> list.stream()).collect(toList());
         List<List> kbLabels = new ArrayList<>(oneStep);
         kbLabels.addAll(twoStep);
+        logger.debug("kbLabels:{}",kbLabels);
 
         List<Map> rdfs = kbLabels.stream().distinct().map(rdf -> commonCounter(rdf, hangLabels)).collect(toList());
         Integer maxScore = rdfs.stream().map(m -> (Integer) m.get(SCORE)).sorted(Comparator.reverseOrder()).findFirst().get();

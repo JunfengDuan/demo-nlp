@@ -12,24 +12,25 @@ import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-
+@Component
 public class ESRest {
 
 	private static Logger logger = LoggerFactory.getLogger(ESRest.class);
 
-	@Value("{esServerHost:localhost}")
+	@Value("${esServerHost:localhost}")
 	private String esServerHost;
-    @Value("{esServerPort:9300}")
+    @Value("${esServerPort:9300}")
 	private int esServerPort;
-    @Value("{esClusterName:escluster}")
+    @Value("${esClusterName:beidasoft-es}")
     private String esClusterName;
-    @Value("{esIndexName:esindex}")
+    @Value("${esIndexName:esindex}")
 	private String[] esIndexName;
 
     private InetAddress _ESServerIp;
@@ -42,10 +43,7 @@ public class ESRest {
 	@PostConstruct
 	private void OpenClient() {
 		if (_Client == null) {
-		    esClusterName = "beidasoft-es";
-		    esServerHost = "192.168.1.151";
-		    esServerPort = 9300;
-		    esIndexName = new String[]{"lexicon"};
+
 			try {
 				_ESServerIp = InetAddress.getByName(esServerHost);
 				Settings esSettings = Settings.builder().put("cluster.name", esClusterName) // 设置ES实例的名称
@@ -125,12 +123,12 @@ public class ESRest {
 			/*------------为检索添加高亮标记   End---------------*/
 
 			_Response = srb.get();				
-			logger.debug("Response :{}", _Response.toString());
+//			logger.debug("Response :{}", _Response.toString());
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw e;
 		} finally {
-			logger.debug("Query Finally");
+//			logger.debug("Query Finally");
 			// this.CloseClient();
 		}
 		return _Response;

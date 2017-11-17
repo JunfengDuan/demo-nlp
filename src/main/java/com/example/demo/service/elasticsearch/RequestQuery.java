@@ -1,7 +1,9 @@
 package com.example.demo.service.elasticsearch;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.springframework.stereotype.Component;
 
+@Component
 public class RequestQuery {
 
 	public String[] resFields;

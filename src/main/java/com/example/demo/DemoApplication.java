@@ -9,8 +9,7 @@ import org.springframework.context.annotation.PropertySource;
 		"classpath:application.properties",
 		"classpath:neo4j.properties",
 		"classpath:elasticsearch.properties"
-}
-)
+})
 public class DemoApplication {
 
 	public static void main(String[] args) {
