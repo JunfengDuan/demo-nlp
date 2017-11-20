@@ -74,7 +74,7 @@ public class SemanticParser {
         List<String> topicWords = new ArrayList<>();
         List<Map<String,Object>> entityNames = new ArrayList<>();
         entityMatch(topicWordsString, topicWords, entityNames);
-        logger.debug("Entity link:{}",entityNames);
+        logger.debug("Dict entity link:{}",entityNames);
 
         //属性链接
         List<String> entityRemovedWords = words.stream().filter(w -> !topicWords.contains(w)).collect(Collectors.toList());
@@ -88,8 +88,12 @@ public class SemanticParser {
             value = stringFilter(value);
             return remain.contains(value.trim());
         }).collect(Collectors.toList());
-        logger.debug("Property link:{}",containedProps);
+        logger.debug("Dict property link:{}",containedProps);
 
+        if(containedProps.isEmpty()){
+            // TODO: 11/20/17 查询扩展：同义词、近义词
+
+        }
         labels.addAll(entityNames);
         props.addAll( containedProps);
     }
@@ -97,7 +101,7 @@ public class SemanticParser {
     private List<Map<String, Object>> propMatch(List<String> entityRemovedWords) {
         Map<String, Object> map  = new HashMap<>();
         map.put("type", "propDict");
-        map.put("size", 20);
+        map.put("size", 30);
 
         List<String> conjunctions = new ArrayList();
         conjunctions.add("AS");

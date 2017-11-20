@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 
@@ -107,7 +108,12 @@ public class SegmentJob{
 
     private Map<String, String> parseTag(String tag){
         String[] split = tag.split(" ");
-        Map<String, String> pos = Arrays.stream(split).map(t -> t.split("#")).collect(toMap(e -> e[0], e -> e[1]));
+//        Map<String, String> pos = Arrays.stream(split).map(t -> t.split("#")).collect(Collectors.toMap(e -> e[0], e -> e[1]));
+        Map<String, String> pos = new LinkedHashMap<>();
+        for(String s: split){
+            String[] ss = s.split("#");
+            pos.put(ss[0],ss[1]);
+        }
         return pos;
     }
 

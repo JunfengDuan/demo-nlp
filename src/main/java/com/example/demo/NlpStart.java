@@ -30,7 +30,7 @@ public class NlpStart{
         String query0 ="北京大学";
         String query = "少数民族女市管干部";
         String query1 = "干部";
-        String query2 = "少数民族女";
+        String query2 = "少数民族女干部";
         String query3 = "市管干部";
         String query4 = "女非中共党员干部";
         String query5 = "籍贯是河北的干部";
@@ -46,10 +46,10 @@ public class NlpStart{
         String query15 = "质监局1990年出生的干部";
         String query16 = "八零后干部";
         String query17 = "三十岁的干部";
-        String query18 = "毕业于北京大学的少数民族女干部";
+        String query18 = "毕业于北京大学的干部";
 
-        Map<String, Object> result = search(query0);
-        logger.info("\nAfter segment :{}",result);
+        Map<String, Object> result = search(query5);
+        logger.info("\n-----Result------ :{}",result);
 
     }
 
@@ -98,6 +98,7 @@ public class NlpStart{
      * @return 结合知识库知识后返回最相关的实体及关系集合
      */
     private List<String> entityLinkedWithKB(List<String> hangLabels) {
+        logger.debug("Labels before query knowledge base:{}", hangLabels);
 
         if(hangLabels.size()<=1) return hangLabels;
 
@@ -106,10 +107,15 @@ public class NlpStart{
         List<List> kbLabels = new ArrayList<>(oneStep);
         kbLabels.addAll(twoStep);
         logger.debug("kbLabels:{}",kbLabels);
+        if(kbLabels.isEmpty()){
+            logger.error("Query for kb failed, empty kbLabels");
+            return hangLabels;
+        }
 
         List<Map> rdfs = kbLabels.stream().distinct().map(rdf -> commonCounter(rdf, hangLabels)).collect(toList());
         Integer maxScore = rdfs.stream().map(m -> (Integer) m.get(SCORE)).sorted(Comparator.reverseOrder()).findFirst().get();
         List<Map> maxScoreLabels = rdfs.stream().filter(m -> maxScore == m.get(SCORE)).collect(toList());
+        logger.debug("maxScoreLabels:{}",maxScoreLabels);
         return (List<String>) maxScoreLabels.get(0).get(RDF);
     }
 
@@ -141,7 +147,7 @@ public class NlpStart{
      */
     private List<Map<String, Object>> propertiesFilter(List<Map<String, Object>> props, Map<String, Object> customDict, Map<String, Object> args) {
         props.forEach(e -> {
-            String key = e.get(LABEL) +"."+ e.get(FIELD);
+            String key = e.get(LABEL) +":"+ e.get(FIELD);
             String value = (String) e.get(VALUE);
 
             if(args.containsKey(key)){
@@ -151,16 +157,14 @@ public class NlpStart{
                 args.put(key, new ArrayList<String>(){{add(value);}});
             }
 
-            String label = (String) e.get(LABEL);
-            String type = (String) e.get(TYPE);
-            Map<String,Object> labelMap = new HashMap(){{put(LABEL, label);put(TYPE, type);}};
         });
 
         Map<String, Object> params = matcher(args);
         List<Map<String, Object>> rcp = props.stream().map(m -> recombineProps(params, m)).collect(toList());
 
         //对自定义的属性条件做进一步处理
-        return customPropsHandle(customDict, rcp);
+        customPropsHandle(customDict, rcp);
+        return rcp;
     }
 
     /**
@@ -174,8 +178,9 @@ public class NlpStart{
         String label = (String) m.get(LABEL);
         String field = (String) m.get(FIELD);
         params.entrySet().forEach(entry -> {
-            String[] key = entry.getKey().split(".");
-            if(label.equals(key[0]) && field.equals(key[1])){
+            String entryKey = entry.getKey();
+            String[] keys = entryKey.split(":");
+            if(label.equals(keys[0]) && field.equals(keys[1])){
                 m.put(VALUE,entry.getValue());
             }
         });
@@ -188,20 +193,18 @@ public class NlpStart{
      * @param params
      * @return
      */
-    private List<Map<String, Object>> customPropsHandle(Map<String, Object> customDict, List<Map<String, Object>> params) {
-        List<Map<String, Object>> properties = new ArrayList<>();
+    private void customPropsHandle(Map<String, Object> customDict, List<Map<String, Object>> params) {
         for(Map m : params){
             String value = (String) m.get(VALUE);
             String op = (String) m.get(OP);
             if(StringUtils.isNotEmpty(op)) continue;
             if(customDict.containsKey(value)){
                 String v = ((String) customDict.get(value)).trim();
-                properties.add(new HashMap(){{put(VALUE,v);put(OP,"<>");}});
+                m.put(OP,"<>");
             }else {
-                properties.add(new HashMap(){{put(VALUE,value);put(OP,"=");}});
+                m.put(OP,"=");
             }
         }
-        return properties;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.example.demo.service.tinkerpop;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
@@ -68,6 +69,7 @@ public class Neo4jHttpClient {
 
         httpClient = HttpClients.createDefault();
 	    HttpGet httpRequest = new HttpGet(uri);
+        Object result = new Object();
 	    
 		try {
 		    //设置超时时间
@@ -75,28 +77,20 @@ public class Neo4jHttpClient {
         	httpRequest.addHeader("Authorization", "Basic " + basic);
 
         	HttpResponse httpResponse = httpClient.execute(httpRequest);
-            String strResult = "";
             if(httpResponse != null){
-                if (httpResponse.getStatusLine().getStatusCode() == 200) {
-                    strResult = EntityUtils.toString(httpResponse.getEntity());
+                int statusCode = httpResponse.getStatusLine().getStatusCode();
+                if ( statusCode == 200) {
+                    String strResult = EntityUtils.toString(httpResponse.getEntity());
                     JSONObject jsonResult = JSONObject.parseObject(strResult);
-                    HashMap map = new HashMap(jsonResult);
-                    
-                    return map.get("results");
-                    
-                } else if (httpResponse.getStatusLine().getStatusCode() == 400) {
-                	return "[]";
-                    //strResult = "Error Response: " + httpResponse.getStatusLine().toString();
-                } else if (httpResponse.getStatusLine().getStatusCode() == 500) {
-                    strResult = "Error Response: " + httpResponse.getStatusLine().toString();
-                } else {
-                    strResult = "Error Response: " + httpResponse.getStatusLine().toString();
-                } 
-            }else{
-            	
+                    result = jsonResult.get("results");
+
+                }else{
+                    result = new JSONArray();
+                }
+
             }
 
-            return strResult.toString();
+            return result;
         } catch (Exception e) {
             e.printStackTrace();
         }finally {

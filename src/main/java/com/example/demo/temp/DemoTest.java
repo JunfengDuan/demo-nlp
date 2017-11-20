@@ -1,6 +1,7 @@
 package com.example.demo.temp;
 
 import com.example.demo.nlp.QueryGraph;
+import com.example.demo.nlp.SegmentJob;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -19,10 +20,11 @@ public class DemoTest {
         String query12 = "1990年出生的干部";
         String query5 = "籍贯是河北的干部";
         String query6 = "毕业于北京大学的少数民族女干部";
+        String query2 = "非汉族女干部";
 
-//        SegmentJob segmentJob = new SegmentJob();
-//        Map<String, String> nlp = segmentJob.doNlp(query6);
-
+        SegmentJob segmentJob = new SegmentJob();
+        Map<String, String> nlp = segmentJob.doNlp(query2);
+        System.out.println(nlp);
       /*  ElasticsearchFullSearch fullSearch = new ElasticsearchFullSearch();
         Map<String, Object> map  = new HashMap<>();
         map.put("type", "propDict");
