@@ -48,8 +48,9 @@ public class NlpStart{
         String query17 = "三十岁的干部";
         String query18 = "毕业于北京大学的干部";
         String query19 = "毕业于北大的女干部";
+        String query20 = "解元新";
 
-        Map<String, Object> result = search(query0);
+        Map<String, Object> result = search(query20);
         logger.info("\n-----Result------ :{}",result);
 
     }
@@ -141,9 +142,12 @@ public class NlpStart{
 
     private List<Map<String, Object>> propertiesFilter(Map<String, Object> props, Map<String, Object> customDict, Map<String, Object> leavedArgs) {
         props.entrySet().stream().filter(e -> ((List)e.getValue()).size()>1).forEach(m -> leavedArgs.put(m.getKey(), m.getValue()));
-        List<Map<String, Object>> prs = props.entrySet().stream().filter(e -> ((List)e.getValue()).size()==1)
-                .map(m -> (Map<String, Object>)m.getValue()).collect(toList());
 
+
+        List<Map<String, Object>> prs = props.entrySet().stream().filter(e -> ((List)e.getValue()).size()==1)
+                .map(m -> (List<Map<String, Object>>)m.getValue()).flatMap(l -> l.stream()).collect(toList());
+
+        logger.debug("Selected properties:{}",prs);
         //对自定义的属性条件做进一步处理
         if(prs.size()>0)
             customPropsHandle(customDict, prs);
