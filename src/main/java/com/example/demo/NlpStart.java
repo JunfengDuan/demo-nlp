@@ -47,8 +47,9 @@ public class NlpStart{
         String query16 = "八零后干部";
         String query17 = "三十岁的干部";
         String query18 = "毕业于北京大学的干部";
+        String query19 = "毕业于北大的女干部";
 
-        Map<String, Object> result = search(query5);
+        Map<String, Object> result = search(query0);
         logger.info("\n-----Result------ :{}",result);
 
     }
@@ -63,13 +64,13 @@ public class NlpStart{
 
         //实体或者关系的类型,用label表示;节点或边,用e/r表示.map={label="",type='e'/'r'}
         List<Map<String, Object>> labels = new ArrayList<>();
-        //实体或关系类型-label,名称字段-field，名称-value,实体名称的约束操作-op，map={label=,field=,value=,type=,op=}
-        List<Map<String, Object>> props = new ArrayList<>();
+        //实体或关系 类型-label,名称字段-field，名称-value, 分数-score, 实体名称的约束操作-op，map={label=,field=,value=,type=,op=}
+        Map<String, Object> props = new HashMap<>();
         //记录含有“非”的词的词典
         Map<String,Object> customDict = new HashMap<>();
 
-        //临时存放具体的某一个实体及其操作 key:Cadre.age; value:>30
-        Map<String, Object> args = new HashMap<>();
+        //排名相同的实体由用户选择 北大（北京大学、台北大学）
+        Map<String, Object> leavedProps = new HashMap<>();
 
         //自然语言处理，解析text中的实体和类型
         semanticParser.parse(customDict, labels, props, query);
@@ -77,19 +78,19 @@ public class NlpStart{
         //实体类型的集合
         List<String> labelResult = new ArrayList<>();
         labels.stream().map(l -> (String) l.get(LABEL)).forEach(labelResult :: add);
-        props.stream().map(p -> (String) p.get(LABEL)).forEach(labelResult :: add);
+        props.values().forEach(l -> ((List)l).stream().map(m -> ((Map<String,Object>)m).get(LABEL)).forEach(s -> labelResult.add(s.toString())));
         removeDuplicate(labelResult);
 
         //利用知识库对候选实体、关系的筛选
-        List<String> linkedWithKB = entityLinkedWithKB(labelResult);
+        List<Object> linkedWithKB = entityLinkedWithKB(labelResult);
         logger.debug("LinkedWithKB:{}",linkedWithKB);
 
         //对候选属性筛选
-        List<Map<String, Object>> properties = propertiesFilter(props, customDict, args);
+        List<Map<String, Object>> properties = propertiesFilter(props, customDict, leavedProps);
         Set<Map<String, Object>> propertyResult = properties.stream().filter(map -> linkedWithKB.contains(map.get(LABEL))).collect(toSet());
 
         logger.debug("Filtered properties:{}",propertyResult);
-        return new HashMap(){{put(LABEL,linkedWithKB);put(PROPERTIES,propertyResult);}};
+        return new HashMap(){{put(LABEL,linkedWithKB);put(PROPERTIES,propertyResult);put(LEAVED_PROPS,leavedProps);}};
     }
 
     /**
@@ -97,10 +98,10 @@ public class NlpStart{
      * @param hangLabels 待处理的实体类型
      * @return 结合知识库知识后返回最相关的实体及关系集合
      */
-    private List<String> entityLinkedWithKB(List<String> hangLabels) {
+    private List<Object> entityLinkedWithKB(List<String> hangLabels) {
         logger.debug("Labels before query knowledge base:{}", hangLabels);
 
-        if(hangLabels.size()<=1) return hangLabels;
+        if(hangLabels.size()<=1) return new ArrayList<>(hangLabels);
 
         List<List> oneStep = hangLabels.stream().map(label -> queryGraph.oneStep(label)).flatMap(list -> list.stream()).collect(toList());
         List<List> twoStep = hangLabels.stream().map(label -> queryGraph.twoStep(label)).flatMap(list -> list.stream()).collect(toList());
@@ -109,14 +110,14 @@ public class NlpStart{
         logger.debug("kbLabels:{}",kbLabels);
         if(kbLabels.isEmpty()){
             logger.error("Query for kb failed, empty kbLabels");
-            return hangLabels;
+            return new ArrayList<>(hangLabels);
         }
 
         List<Map> rdfs = kbLabels.stream().distinct().map(rdf -> commonCounter(rdf, hangLabels)).collect(toList());
         Integer maxScore = rdfs.stream().map(m -> (Integer) m.get(SCORE)).sorted(Comparator.reverseOrder()).findFirst().get();
         List<Map> maxScoreLabels = rdfs.stream().filter(m -> maxScore == m.get(SCORE)).collect(toList());
         logger.debug("maxScoreLabels:{}",maxScoreLabels);
-        return (List<String>) maxScoreLabels.get(0).get(RDF);
+        return maxScoreLabels.stream().map(l -> l.get(RDF)).collect(toList());
     }
 
     /**
@@ -138,6 +139,18 @@ public class NlpStart{
         return scoredLabel;
     }
 
+    private List<Map<String, Object>> propertiesFilter(Map<String, Object> props, Map<String, Object> customDict, Map<String, Object> leavedArgs) {
+        props.entrySet().stream().filter(e -> ((List)e.getValue()).size()>1).forEach(m -> leavedArgs.put(m.getKey(), m.getValue()));
+        List<Map<String, Object>> prs = props.entrySet().stream().filter(e -> ((List)e.getValue()).size()==1)
+                .map(m -> (Map<String, Object>)m.getValue()).collect(toList());
+
+        //对自定义的属性条件做进一步处理
+        if(prs.size()>0)
+            customPropsHandle(customDict, prs);
+        return prs;
+
+    }
+
     /**
      * 对候选实体筛选
      * @param props 候选实体集合
@@ -145,8 +158,9 @@ public class NlpStart{
      * @param args
      * @return
      */
-    private List<Map<String, Object>> propertiesFilter(List<Map<String, Object>> props, Map<String, Object> customDict, Map<String, Object> args) {
-        props.forEach(e -> {
+    private List<Map<String, Object>> propertiesFilter1(Map<String, Object> props, Map<String, Object> customDict, Map<String, Object> args) {
+        List<Map<String, Object>> prs = new ArrayList(Collections.unmodifiableCollection(props.values()));
+        prs.forEach(e -> {
             String key = e.get(LABEL) +":"+ e.get(FIELD);
             String value = (String) e.get(VALUE);
 
@@ -160,7 +174,7 @@ public class NlpStart{
         });
 
         Map<String, Object> params = matcher(args);
-        List<Map<String, Object>> rcp = props.stream().map(m -> recombineProps(params, m)).collect(toList());
+        List<Map<String, Object>> rcp = prs.stream().map(m -> recombineProps(params, m)).collect(toList());
 
         //对自定义的属性条件做进一步处理
         customPropsHandle(customDict, rcp);
@@ -199,7 +213,6 @@ public class NlpStart{
             String op = (String) m.get(OP);
             if(StringUtils.isNotEmpty(op)) continue;
             if(customDict.containsKey(value)){
-                String v = ((String) customDict.get(value)).trim();
                 m.put(OP,"<>");
             }else {
                 m.put(OP,"=");

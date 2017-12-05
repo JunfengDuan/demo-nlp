@@ -14,4 +14,5 @@ public interface StringConst {
     String SCORE = "score";
 
     String PROPERTIES = "properties";
+    String LEAVED_PROPS = "leaved_properties";
 }

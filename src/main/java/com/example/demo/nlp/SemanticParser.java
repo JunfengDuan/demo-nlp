@@ -16,6 +16,7 @@ import static com.example.demo.nlp.AlgorithmLibrary.chineseNumbers;
 import static com.example.demo.nlp.AlgorithmLibrary.connect2Num;
 import static com.example.demo.nlp.AlgorithmLibrary.convert2Num;
 import static com.example.demo.nlp.StringConst.*;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Created by jfd on 11/11/17.
@@ -40,7 +41,7 @@ public class SemanticParser {
      * @param props 属性的集合
      *@param queryStr 搜索的自然语言  @return
      */
-    public void parse(Map<String, Object> customDict, List<Map<String, Object>> labels,  List<Map<String, Object>> props, String queryStr){
+    public void parse(Map<String, Object> customDict, List<Map<String, Object>> labels,  Map<String, Object> props, String queryStr){
 
         String query = specialStringHandle(queryStr);
 
@@ -53,14 +54,16 @@ public class SemanticParser {
 
         //年龄处理
         List<String> segments = new ArrayList<>(Collections.unmodifiableCollection(nlp.keySet()));
+
         Map<String, Object> range = ageRangeParse(segments);
 
         segments = (List<String>) range.get("removeAgeWords");
-        List<String> age = (List<String>) range.get("age");
+        String ageWord = (String) range.get("ageWord");
+        List<String> age = (List<String>) range.get(ageWord);
 
         if(age != null && !age.isEmpty()){
             List<Map<String,Object>> birthMap = ageToBirth(age);
-            props.addAll(birthMap);
+            props.put(ageWord, birthMap);
             labels.add(new HashMap(){{put("label","Cadre");put("type", "e");}});
         }
 
@@ -77,31 +80,75 @@ public class SemanticParser {
         logger.debug("Dict entity link:{}",entityNames);
 
         //属性链接
-        List<String> entityRemovedWords = words.stream().filter(w -> !topicWords.contains(w)).collect(Collectors.toList());
-        List<Map<String, Object>> propsList = propMatch(entityRemovedWords);
+        List<String> entityRemovedWords = words.stream().filter(w -> !topicWords.contains(w)).collect(toList());
+        Map<String, Object> propsList = propMatch(entityRemovedWords);
 
+        //候选属性排序
+        Map<String, Object> rankedProps = candidatePropsRank(words, propsList);
+        logger.debug("Candidate properties rank:{}", rankedProps);
 
-        String remain = StringUtils.join(words, "").trim();
+        //选择分值最高的属性集合
+        Map<String, Object> topProps = selectTopProps(rankedProps);
+        logger.debug("Select top n properties:{}", topProps);
 
-        List<Map<String, Object>> containedProps = propsList.stream().filter(fields -> {
-            String value = fields.get("value") == null ? "" : (String) fields.get("value");
-            value = stringFilter(value);
-            return remain.contains(value.trim());
-        }).collect(Collectors.toList());
-        logger.debug("Dict property link:{}",containedProps);
-
-        if(containedProps.isEmpty()){
-            // TODO: 11/20/17 查询扩展：同义词、近义词
-
-        }
         labels.addAll(entityNames);
-        props.addAll( containedProps);
+        props.putAll(topProps);
     }
 
-    private List<Map<String, Object>> propMatch(List<String> entityRemovedWords) {
+    private Map selectTopProps(Map<String, Object> containedProps) {
+        Map<String, Object> topWordProps = new HashMap<>();
+        for(Map.Entry entry : containedProps.entrySet()){
+            float maxScore = 0;
+            String word = (String) entry.getKey();
+            List<Map<String, Object>> props = (List<Map<String, Object>>) entry.getValue();
+            for(Map map : props){
+                float score = (float) map.get(SCORE);
+                if(score > maxScore){
+                    maxScore = score;
+                }
+            }
+            float top = maxScore;
+            List<Map<String, Object>> topProps = props.stream().distinct().filter(p -> top == (float) p.get(SCORE)).collect(toList());
+            topWordProps.put(word, topProps);
+        }
+        return topWordProps;
+    }
+
+    private Map<String, Object> candidatePropsRank(List<String> words, Map<String, Object> propsList) {
+        String remain = StringUtils.join(words, "").trim();
+        for(Map.Entry entry : propsList.entrySet()){
+            String word = (String) entry.getKey();
+            List<Map<String, Object>> linkedProps = (List<Map<String, Object>>) entry.getValue();
+            linkedProps.forEach(map -> {
+                float score = computeScore(word, map);
+                map.put("score", score);
+            });
+        }
+
+        return propsList;
+    }
+
+    /**
+     * 计算两个字符串的相似性
+     * score=(源字符串和目标字符串相同字符个数)/目标字符串个数
+     * @param word
+     * @param map
+     * @return
+     */
+    private float computeScore(String word, Map<String, Object> map) {
+        float score = 0;
+        String propValue = (String) map.get(VALUE);
+        for(char c: word.toCharArray()){
+            if(propValue.contains(String.valueOf(c)))
+                score++;
+        }
+        return score/propValue.length();
+    }
+
+    private Map<String, Object> propMatch(List<String> entityRemovedWords) {
         Map<String, Object> map  = new HashMap<>();
         map.put("type", "propDict");
-        map.put("size", 30);
+        map.put("size", 100);
 
         List<String> conjunctions = new ArrayList();
         conjunctions.add("AS");
@@ -116,10 +163,13 @@ public class SemanticParser {
         conjunctions.add("PN");
         conjunctions.add("PU");
 
-        List<Map<String, Object>> propsList = new ArrayList<>();
+        Map<String,Object> entityLinkedPair  = new HashMap<>();
         entityRemovedWords.stream().filter(e -> !conjunctions.contains(e))
-                .map(word -> fullSearch.StringMatch(word, map)).forEach(propsList :: addAll);
-        return propsList;
+                .forEach(word -> {
+                    List list = fullSearch.StringMatch(word, map);
+                    entityLinkedPair.put(word, list);
+                });
+        return entityLinkedPair;
     }
 
     private String entityAlignment(String query) {
@@ -166,7 +216,7 @@ public class SemanticParser {
         nounsAndVerbs.add("NR");
         nounsAndVerbs.add("VV");
         return nlp.entrySet().stream().filter(entry -> words.contains(entry.getKey())
-                && nounsAndVerbs.contains(entry.getValue())).map(e -> e.getKey()).collect(Collectors.toList());
+                && nounsAndVerbs.contains(entry.getValue())).map(e -> e.getKey()).collect(toList());
     }
 
     /**
@@ -185,7 +235,7 @@ public class SemanticParser {
             }
 
         });
-        return segments.stream().filter(s -> !"非".equals(s)).collect(Collectors.toList());
+        return segments.stream().filter(s -> !"非".equals(s)).collect(toList());
     }
 
     private String specialStringHandle(String search) {
@@ -205,11 +255,12 @@ public class SemanticParser {
 
     // 年龄范围解析
     private Map<String, Object> ageRangeParse(List<String> wordsList){
+
         List<String> ageList = new ArrayList<>();
         List<String> words = new ArrayList<>();
 
         for(String w: wordsList){
-            List<String> collect = chineseNumbers.keySet().stream().filter(c -> w.contains(c)).collect(Collectors.toList());
+            List<String> collect = chineseNumbers.keySet().stream().filter(c -> w.contains(c)).collect(toList());
             String str = w;
             if(!collect.isEmpty()){
                 str = String.valueOf(convert2Num(str));
@@ -219,7 +270,7 @@ public class SemanticParser {
             words.add(str);
         }
         String query = StringUtils.join(words.iterator(),"");
-        List<String> age = words.stream().filter(w -> api.ageList.contains(w)).collect(Collectors.toList());
+        List<String> age = words.stream().filter(w -> api.ageList.contains(w)).collect(toList());
         if(age.isEmpty()){
             boolean isAge = false;
             if(query.contains("后")){
@@ -232,7 +283,7 @@ public class SemanticParser {
             if(!isAge)  return new HashMap(){{put("removeAgeWords",words);}};
         }
 
-        List<String> compare = words.stream().filter(w -> api.compareMap.keySet().contains(w) || containNumeric(w)).collect(Collectors.toList());
+        List<String> compare = words.stream().filter(w -> api.compareMap.keySet().contains(w) || containNumeric(w)).collect(toList());
 
         compare.forEach(w -> {
 
@@ -277,9 +328,9 @@ public class SemanticParser {
                 ageList.add("contains "+w);
             }
         });
-
-        List<String> removeAgeWords = words.stream().filter(w -> !api.ageList.contains(w) && !compare.contains(w)).collect(Collectors.toList());
-        return new HashMap(){{put("removeAgeWords",removeAgeWords);put("age",ageList);}};
+        String ageWord = age.get(0) == null ? "noneAge" : age.get(0);
+        List<String> removeAgeWords = words.stream().filter(w -> !api.ageList.contains(w) && !compare.contains(w)).collect(toList());
+        return new HashMap(){{put("removeAgeWords",removeAgeWords);put(ageWord,ageList);put("ageWord",ageWord);}};
     }
 
 
