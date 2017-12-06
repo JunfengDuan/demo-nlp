@@ -49,8 +49,10 @@ public class NlpStart{
         String query18 = "毕业于北京大学的干部";
         String query19 = "毕业于北大的女干部";
         String query20 = "解元新";
+        String query21 = "南大";
+        String query22 = "女干部";
 
-        Map<String, Object> result = search(query20);
+        Map<String, Object> result = search(query22);
         logger.info("\n-----Result------ :{}",result);
 
     }
@@ -116,9 +118,14 @@ public class NlpStart{
 
         List<Map> rdfs = kbLabels.stream().distinct().map(rdf -> commonCounter(rdf, hangLabels)).collect(toList());
         Integer maxScore = rdfs.stream().map(m -> (Integer) m.get(SCORE)).sorted(Comparator.reverseOrder()).findFirst().get();
+        if(2==hangLabels.size() && 1==maxScore){
+            return new ArrayList<>(hangLabels);
+        }
         List<Map> maxScoreLabels = rdfs.stream().filter(m -> maxScore == m.get(SCORE)).collect(toList());
         logger.debug("maxScoreLabels:{}",maxScoreLabels);
-        return maxScoreLabels.stream().map(l -> l.get(RDF)).collect(toList());
+
+        List<Object> maxScoreRdfs = maxScoreLabels.stream().map(l -> l.get(RDF)).collect(toList());
+        return maxScoreRdfs;
     }
 
     /**

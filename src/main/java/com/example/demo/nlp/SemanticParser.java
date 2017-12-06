@@ -47,6 +47,7 @@ public class SemanticParser {
 
         //实体对齐
         String kbQuery = entityAlignment(query);
+        logger.debug("Text:{}, alignmentText:{}", query, kbQuery);
 
         //自然语言 分词、NER、POS
         Map<String, String> nlp = segmentJob.doNlp(kbQuery);
@@ -146,9 +147,13 @@ public class SemanticParser {
     }
 
     private Map<String, Object> propMatch(List<String> entityRemovedWords) {
-        Map<String, Object> map  = new HashMap<>();
-        map.put("type", "propDict");
-        map.put("size", 100);
+        Map<String, Object> rule2  = new HashMap<>();
+        rule2.put("type", "propDict");
+        rule2.put("size", 100);
+
+        Map<String, Object> rule3  = new HashMap<>();
+        rule3.put("type", "customDict");
+        rule3.put("size", 30);
 
         List<String> conjunctions = new ArrayList();
         conjunctions.add("AS");
@@ -166,17 +171,33 @@ public class SemanticParser {
         Map<String,Object> entityLinkedPair  = new HashMap<>();
         entityRemovedWords.stream().filter(e -> !conjunctions.contains(e))
                 .forEach(word -> {
-                    List list = fullSearch.StringMatch(word, map);
+//                    String completedWord = entityAlignment(word);
+                    List list = fullSearch.StringMatch(word, rule2);
                     entityLinkedPair.put(word, list);
+                });
+        entityRemovedWords.stream().filter(e -> !conjunctions.contains(e))
+                .forEach(word -> {
+                    List<Map<String, Object>> list = fullSearch.StringMatch(word, rule3);
+
+                    if(!list.isEmpty()){
+                        list.forEach(e -> {
+                            String kb_value = (String) e.get("kb_value");
+                            e.remove("cx_value");
+                            e.remove("kb_value");
+                            e.put(VALUE, kb_value);
+                        });
+                        entityLinkedPair.put(word, list);
+                    }
+
                 });
         return entityLinkedPair;
     }
 
     private String entityAlignment(String query) {
-        Map<String, Object> map  = new HashMap<>();
-        map.put("type", "customDict");
-        map.put("size", 20);
-        List<Map<String, Object>> alignmentList = fullSearch.StringMatch(query, map);
+        Map<String, Object> rule3  = new HashMap<>();
+        rule3.put("type", "customDict");
+        rule3.put("size", 30);
+        List<Map<String, Object>> alignmentList = fullSearch.StringMatch(query, rule3);
         if(!alignmentList.isEmpty()){
             for(Map e: alignmentList){
                 String cx_value = (String) e.get("cx_value");

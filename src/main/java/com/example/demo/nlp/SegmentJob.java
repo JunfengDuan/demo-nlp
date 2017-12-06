@@ -73,7 +73,7 @@ public class SegmentJob{
         List<String> regex = regex(xml);
         regex.forEach(r -> parseXml(tags, r));
 
-        tags.entrySet().forEach(e -> logger.debug("text:{}; ner:{} tag:{} ",
+        tags.entrySet().forEach(e -> logger.debug("tokenString:{}; ner:{} tag:{} ",
                 tokenString.replaceAll(" ",""), e.getKey().replace(" ",""), e.getValue()));
 
         String msg = tokenString;
